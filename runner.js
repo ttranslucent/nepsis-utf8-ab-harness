@@ -1,8 +1,8 @@
-// ---- config: expected NFC outputs for each case ----
+// ---- expected characters for each case ----
 const CASES = [
-  { key: 'cmb',    name: 'Combining marks split over chunks', expect: 'é' }, // e + ◌́ → é
-  { key: 'idem',   name: 'Idempotent NFC',                     expect: 'é' }, // é → é
-  { key: 'hangul', name: 'Hangul Jamo compose',                expect: '가' }, // ᄀ + ᅡ → 가
+  { key: 'cmb',    name: 'Combining marks split over chunks', expect: 'é' },
+  { key: 'idem',   name: 'Idempotent NFC',                     expect: 'é' },
+  { key: 'hangul', name: 'Hangul Jamo compose',                expect: '가' },
 ];
 
 const PROMPT_PATHS = {
@@ -10,9 +10,28 @@ const PROMPT_PATHS = {
   nepsis: '/prompts/scaffold.txt',
 };
 
-// ---- utilities ----
-const firstChar = (s) => (s ?? '').trim().replace(/^```[\s\S]*?```/g, '').trim().at(0) ?? '';
-const cp = (ch) => 'U+' + (ch.codePointAt?.(0) ?? 0).toString(16).toUpperCase();
+// ---- helpers ----
+const get = (id) => document.getElementById(id);
+const cp = (ch) => 'U+' + (ch.codePointAt(0).toString(16).toUpperCase());
+
+function firstCharFrom(text) {
+  if (!text) return '';
+  const stripped = text.replace(/```[\s\S]*?```/g, '').trim();
+  for (const ch of stripped) {
+    if (!/\s|["'`]/.test(ch)) return ch;
+  }
+  return '';
+}
+
+function showToast(msg, ok = true) {
+  const el = get('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.borderColor = ok ? 'rgba(16,185,129,.4)' : 'rgba(239,68,68,.4)';
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 1400);
+}
 
 function flashCopy(btn, ok = true, label = 'Copied!') {
   const original = btn.textContent;
@@ -25,16 +44,6 @@ function flashCopy(btn, ok = true, label = 'Copied!') {
   }, 900);
 }
 
-function showToast(msg, ok = true) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.borderColor = ok ? 'rgba(16,185,129,.4)' : 'rgba(239,68,68,.4)';
-  el.classList.add('show');
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.remove('show'), 1400);
-}
-
 async function copy(text, btn) {
   try {
     await navigator.clipboard.writeText(text || '');
@@ -45,16 +54,16 @@ async function copy(text, btn) {
   }
 }
 
+// ---- prompt loading ----
+const prompts = { naked: null, nepsis: null };
+const promptLoads = {};
+
 async function loadPrompt(path) {
   const res = await fetch(path);
-  if (!res.ok) {
-    throw new Error(`Failed to load ${path}: ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
   return await res.text();
 }
 
-const prompts = { naked: null, nepsis: null };
-const promptLoads = {};
 async function ensurePrompt(kind) {
   if (prompts[kind] != null) return prompts[kind];
   promptLoads[kind] ??= (async () => {
@@ -76,53 +85,58 @@ async function ensurePrompt(kind) {
 })();
 
 const copyButtons = {
-  naked: document.getElementById('copy-naked'),
-  nepsis: document.getElementById('copy-nepsis'),
+  naked: get('copy-naked'),
+  nepsis: get('copy-nepsis'),
 };
 
 for (const [kind, button] of Object.entries(copyButtons)) {
   if (!button) continue;
   button.addEventListener('click', async (event) => {
     try {
+      button.classList.add('is-armed');
       const prompt = await ensurePrompt(kind);
       await copy(prompt, event.currentTarget);
     } catch (err) {
       console.error(err);
       flashCopy(event.currentTarget, false, 'Copy failed');
+    } finally {
+      setTimeout(() => button.classList.remove('is-armed'), 1200);
     }
   });
 }
 
-// ---- evaluation of *pasted* outputs ----
-function evaluateSide(prefix) {
-  const results = [];
+// ---- scoring ----
+function scoreBlob(text, label) {
+  const rows = [];
   let score = 0;
 
   for (const c of CASES) {
-    const val = document.getElementById(`${prefix}-${c.key}`).value;
-    const got = firstChar(val);
-    const pass = got === c.expect;
-    results.push({
+    const found = (text ?? '').includes(c.expect);
+    rows.push({
       check: c.name,
-      label: prefix,
-      pass,
-      note: pass ? '' : `got ${got ? `${cp(got)} '${got}'` : '∅'} want ${cp(c.expect)} '${c.expect}'`,
+      label,
+      pass: found,
+      note: found ? '' : `did not find ${c.expect} (${cp(c.expect)})`,
     });
-    if (pass) score += 1;
+    if (found) score += 1;
   }
 
-  const allText = CASES.map((c) => document.getElementById(`${prefix}-${c.key}`).value).join(' ');
-  const bad = /\uFFFD/.test(allText);
-  results.push({ check: 'No replacement characters', label: prefix, pass: !bad, note: bad ? 'Found U+FFFD' : '' });
-  if (!bad) score += 1;
+  const hasReplacement = /\uFFFD/.test(text ?? '');
+  rows.push({
+    check: 'No replacement characters',
+    label,
+    pass: !hasReplacement,
+    note: hasReplacement ? 'Found U+FFFD (�) in output' : '',
+  });
+  if (!hasReplacement) score += 1;
 
-  return { checks: results, score };
+  return { checks: rows, score };
 }
 
 function renderScores(nakedEval, nepsisEval) {
   const tbody = document.querySelector('#score tbody');
-  const totalN = document.getElementById('total-naked');
-  const totalS = document.getElementById('total-nepsis');
+  const totalN = get('total-naked');
+  const totalS = get('total-nepsis');
   tbody.innerHTML = '';
 
   const byName = new Map();
@@ -147,24 +161,28 @@ function renderScores(nakedEval, nepsisEval) {
   window._lastScoreRows = [...nakedEval.checks, ...nepsisEval.checks];
 }
 
-const evaluateBtn = document.getElementById('evaluate');
+const evaluateBtn = get('evaluate');
 if (evaluateBtn) {
   evaluateBtn.addEventListener('click', () => {
-    const eN = evaluateSide('naked');
-    const eS = evaluateSide('nepsis');
+    const nakedText = get('naked-all').value;
+    const nepsisText = get('nepsis-all').value;
+
+    const eN = scoreBlob(nakedText, 'naked');
+    const eS = scoreBlob(nepsisText, 'nepsis');
+
     renderScores(eN, eS);
     showToast('Scores updated');
   });
 }
 
-const downloadBtn = document.getElementById('download-csv');
+const downloadBtn = get('download-csv');
 if (downloadBtn) {
   downloadBtn.addEventListener('click', () => {
     const rows = window._lastScoreRows || [];
-  if (!rows.length) {
-    showToast('Run Evaluate first', false);
-    return;
-  }
+    if (!rows.length) {
+      showToast('Run Evaluate first', false);
+      return;
+    }
     const lines = ['check,label,pass,note', ...rows.map(
       (r) => `${JSON.stringify(r.check)},${r.label},${r.pass},${JSON.stringify(r.note || '')}`,
     )];
@@ -175,7 +193,8 @@ if (downloadBtn) {
     });
     a.click();
     URL.revokeObjectURL(a.href);
-    pulseButton(downloadBtn);
+    downloadBtn.classList.add('pulse');
+    setTimeout(() => downloadBtn.classList.remove('pulse'), 350);
     showToast('Scorecard downloaded');
   });
 }

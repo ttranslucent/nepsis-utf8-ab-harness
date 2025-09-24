@@ -33,6 +33,7 @@
   .btn:active{transform:translateY(1px)}
   .btn-primary{border-color:transparent;background:linear-gradient(90deg,rgba(103,232,249,.20),rgba(192,132,252,.20));box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
   .btn-ghost{background:transparent}
+  .btn.is-armed{outline:2px solid rgba(103,232,249,.35)}
   textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   label{display:block;color:var(--muted);font-size:.9rem;margin:.25rem 0 .35rem}
   .card label:first-of-type{margin-top:0}
@@ -56,25 +57,16 @@
   </div>
   <div class="row">
     <div class="card">
-      <h3>Naked Outputs (paste yours)</h3>
-      <label for="naked-cmb">Combining marks split over chunks</label>
-      <textarea id="naked-cmb" rows="2" placeholder="Paste model output…"></textarea>
-      <label for="naked-idem">Idempotent NFC</label>
-      <textarea id="naked-idem" rows="2" placeholder="Paste model output…"></textarea>
-      <label for="naked-hangul">Hangul Jamo compose</label>
-      <textarea id="naked-hangul" rows="2" placeholder="Paste model output…"></textarea>
+      <h3>Naked Output (paste your model’s output)</h3>
+      <textarea id="naked-all" rows="10" placeholder="Paste the full output from your LLM using the *naked* prompt…"></textarea>
     </div>
 
     <div class="card">
-      <h3>Nepsis-Scaffold Outputs (paste yours)</h3>
-      <label for="nepsis-cmb">Combining marks split over chunks</label>
-      <textarea id="nepsis-cmb" rows="2" placeholder="Paste model output…"></textarea>
-      <label for="nepsis-idem">Idempotent NFC</label>
-      <textarea id="nepsis-idem" rows="2" placeholder="Paste model output…"></textarea>
-      <label for="nepsis-hangul">Hangul Jamo compose</label>
-      <textarea id="nepsis-hangul" rows="2" placeholder="Paste model output…"></textarea>
+      <h3>Nepsis-Scaffold Output (paste your model’s output)</h3>
+      <textarea id="nepsis-all" rows="10" placeholder="Paste the full output from your LLM using the *scaffold* prompt…"></textarea>
     </div>
   </div>
+  <small style="color:var(--muted)">Tip: Pasting the model’s raw output is fine. We look for the expected characters anywhere in the text and flag replacement characters (�).</small>
   <div class="card" style="margin-top:1rem">
     <h3>Evaluator</h3>
     <table id="score"><thead><tr><th>Check</th><th>Naked</th><th>Nepsis</th><th>Notes</th></tr></thead>
@@ -82,4 +74,8 @@
       <tfoot><tr><th>Total Score</th><th id="total-naked">0</th><th id="total-nepsis">0</th><th></th></tr></tfoot>
     </table>
   </div>
+  <footer style="margin-top:2rem;color:var(--muted);font-size:0.9rem">
+    This is MVP Nepsis in scaffold form. This work is proprietary. For discussion or consultation, please email:
+    <a href="mailto:ttranslucent@gmail.com" style="color:var(--accent);text-decoration:none">ttranslucent@gmail.com</a>.
+  </footer>
 </main><div id="toast" aria-live="polite"></div><script src="/runner.js"></script></body></html>
