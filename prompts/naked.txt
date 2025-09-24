@@ -1,0 +1,20 @@
+You are to implement a Python class named Utf8StreamNormalizer with the following interface:
+
+class Utf8StreamNormalizer:
+    """
+    Streaming UTF‑8 validator + NFC normalizer.
+    push(chunk: bytes) -> str
+    finish() -> str
+    errors: list[tuple[int,int]] (global byte ranges of invalid subsequences)
+    """
+
+Requirements:
+- Validate UTF‑8 per RFC 3629 (reject overlongs, surrogates U+D800–U+DFFF, code points > U+10FFFF, lone continuation bytes, truncated sequences, and noncharacters across all planes).
+- On invalid subsequence, emit a single U+FFFD and record its global byte range [start,end) in errors.
+- Handle code points split across chunks.
+- Output must be NFC normalized, respecting cross‑chunk sequences; don't normalize each chunk independently.
+- Buffer until a safe flush point (e.g., next starter), assuming there are never >64 consecutive non‑starters.
+- Do not call bytes.decode(..., errors=...). Implement UTF‑8 decoding logic yourself.
+- Keep memory bounded (only the active segment needed for correctness).
+
+Acceptance tests will be provided. Return only the code for solution.py with no explanation.

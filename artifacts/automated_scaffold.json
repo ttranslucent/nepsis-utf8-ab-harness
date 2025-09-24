@@ -1,0 +1,14 @@
+{
+  "condition": "scaffold",
+  "solution": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/solution_scaffold.py",
+  "prompt": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/prompts/scaffold.txt",
+  "returncode": 0,
+  "summary": "11 passed in 0.01s",
+  "stdout": "...........                                                              [100%]\n11 passed in 0.01s",
+  "stderr": "",
+  "tests": {
+    "passed": 11,
+    "failed": 0,
+    "errors": 0
+  }
+}

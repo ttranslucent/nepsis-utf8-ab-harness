@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nepsis UTF-8 Experiment Runner</title>
+<style>
+  :root{
+    --bg:#050913;
+    --card:#0f1b2d;
+    --muted:#9fb2d0;
+    --text:#e8eefc;
+    --accent:#38bdf8;
+    --alert:#f43f5e;
+    --ok:#10b981;
+    --warn:#fbbf24;
+    --radius:16px;
+    --shadow:0 18px 48px rgba(4,12,26,.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(circle at 20% -10%,rgba(56,189,248,.18),transparent 45%),
+       radial-gradient(circle at 80% -10%,rgba(250,204,21,.12),transparent 42%),
+       linear-gradient(180deg,#050913,#0a1323 35%,#050913);
+       color:var(--text);font:16px/1.6 "Inter",ui-sans-serif,system-ui,-apple-system,Segoe UI}
+  main{max-width:960px;margin:40px auto;padding:0 20px 80px}
+  h1,h2{font-weight:600;letter-spacing:.01em}
+  h1{font-size:34px;margin-bottom:10px}
+  h2{font-size:22px;margin-bottom:12px}
+  p{margin-bottom:12px;color:var(--muted)}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .card{background:rgba(15,27,45,.78);border:1px solid rgba(56,189,248,.14);
+        border-radius:var(--radius);box-shadow:var(--shadow);padding:28px;margin-bottom:26px;
+        backdrop-filter:blur(12px)}
+  .pill{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+        border:1px solid rgba(56,189,248,.35);border-radius:999px;padding:5px 9px;
+        color:var(--accent);margin-right:10px;margin-bottom:14px}
+  pre{background:rgba(7,12,24,.9);border:1px solid rgba(56,189,248,.18);
+      border-radius:12px;padding:14px;overflow-x:auto;font-size:14px;line-height:1.5}
+  code{font-family:"JetBrains Mono",Consolas,monospace}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+  ul{padding-left:20px;margin-bottom:12px;color:var(--muted)}
+  li{margin-bottom:6px}
+  .status{display:flex;align-items:center;gap:10px;margin-bottom:12px;color:var(--ok)}
+  .status span{font-size:14px;color:var(--muted)}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <div>
+      <span class="pill">Nepsis</span>
+      <span class="pill">Experiment</span>
+    </div>
+    <h1>Streaming UTF-8 → NFC Experiment Runner</h1>
+    <p>
+      This page packages the UTF-8 streaming challenge, both prompts, and the automated evaluator.
+      Drop in the model of your choice, capture "naked" vs Nepsis-scaffolded outputs, and post
+      the scorecard in one sweep.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>1. Task Brief & Acceptance Tests</h2>
+    <p>
+      The evaluator runs <code>tests/test_stream_utf8_normalizer.py</code>, which stress
+      the decoder/normalizer across cross-chunk composition, invalid byte spans, and NFC integrity.
+      A trimmed excerpt:
+    </p>
+    <pre><code>def test_hangul_jamo_cross_chunk():
+    out, errs = run_chunks([
+        b"\xE1\x84\x92",
+        b"\xE1\x85\xA1\xE1\x86\xAB",
+    ])
+    assert out == "한" and errs == []
+
+def test_overlong_rejected():
+    out, errs = run_chunks([b"\xC0\xAF"])
+    assert out == "�"
+    assert errs == [(0, 2)]
+</code></pre>
+    <p class="muted">
+      Full harness lives in <code>tests/test_stream_utf8_normalizer.py</code>. The evaluator swaps
+      solutions into <code>solution.py</code> and runs <code>pytest -q</code> for each condition.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>2. Prompts (Copy/Paste)</h2>
+    <div class="grid">
+      <div>
+        <h3>Naked Prompt</h3>
+        <pre><code>You are to implement a Python class named Utf8StreamNormalizer with the following interface:
+
+class Utf8StreamNormalizer:
+    """
+    Streaming UTF‑8 validator + NFC normalizer.
+    push(chunk: bytes) -&gt; str
+    finish() -&gt; str
+    errors: list[tuple[int,int]] (global byte ranges of invalid subsequences)
+    """
+
+Requirements:
+- Validate UTF‑8 per RFC 3629 (reject overlongs, surrogates U+D800–U+DFFF, code points &gt; U+10FFFF, lone continuation bytes, truncated sequences, and noncharacters across all planes).
+- On invalid subsequence, emit a single U+FFFD and record its global byte range [start,end) in errors.
+- Handle code points split across chunks.
+- Output must be NFC normalized, respecting cross‑chunk sequences; don't normalize each chunk independently.
+- Buffer until a safe flush point (e.g., next starter), assuming there are never &gt;64 consecutive non‑starters.
+- Do not call bytes.decode(..., errors=...). Implement UTF‑8 decoding logic yourself.
+- Keep memory bounded (only the active segment needed for correctness).
+
+Acceptance tests will be provided. Return only the code for solution.py with no explanation.</code></pre>
+      </div>
+      <div>
+        <h3>Nepsis Scaffold Prompt</h3>
+        <pre><code>You are implementing a streaming UTF‑8 validator + NFC normalizer under strict constraints.
+Return ONLY the Python code for solution.py that defines Utf8StreamNormalizer.
+
+NON‑NEGOTIABLE CONSTRAINTS (Red Channel):
+1) RFC‑3629 exact UTF‑8: reject overlongs; forbid U+D800–U+DFFF; forbid &gt;U+10FFFF; reject lone continuation/truncated; reject noncharacters in all planes.
+2) On any invalid subsequence, emit exactly one U+FFFD and append (start,end) byte indices in GLOBAL coordinates to self.errors.
+3) Streaming NFC: Do NOT normalize per chunk. Maintain a buffer of the current canonical segment and flush only on seeing a starter (combining class 0) or at finish(). Assume at most 64 consecutive non‑starters.
+4) No cheats: never use bytes.decode(..., errors=...). Implement a UTF‑8 state machine to locate precise error spans.
+
+PROCESS (Blue Channel / STILL):
+- Maintain explicit decoder state: (expected, accum, start_index). On violation, advance minimally to avoid double-counting and record [start,end).
+- Maintain normalization buffer as a list of code points for the current segment; on flush, convert to str and normalize to NFC once.
+- Keep a running byte_offset to map local chunk positions → global positions.
+- Unit-test invariants (mentally): zero false accepts of overlongs; correct cross-chunk composition for A + U+0301; exact span for ED A0 80; no double emission of U+FFFD on cascades.
+
+OUTPUT SHAPE:
+- Define class Utf8StreamNormalizer with methods push(self, chunk: bytes) -&gt; str and finish(self) -&gt; str and an attribute self.errors: list[tuple[int,int]].
+
+IMPLEMENTATION HINTS (allowed):
+- Use unicodedata.normalize and unicodedata.combining for composition and starter detection.
+- Small ring buffer for pending bytes at chunk edges; small list for code points of current canonical segment.
+- When a non-starter arrives and no starter previously, continue buffering; when starter arrives, flush previous segment.
+
+Return ONLY the code for solution.py, no prose.</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Automate the Evaluation</h2>
+    <p>
+      With both solutions saved as <code>solution_naked.py</code> and <code>solution_scaffold.py</code>,
+      run the dual-condition evaluator:
+    </p>
+    <pre><code>python3 -m nepsis.cli.nepsis run-experiment \
+  --model-name "Claude Opus 4.1" \
+  --notes "Automated run"</code></pre>
+    <ul>
+      <li>Swaps each candidate into <code>solution.py</code> and executes <code>pytest -q tests/test_stream_utf8_normalizer.py</code>.</li>
+      <li>Writes per-condition outputs to <code>artifacts/automated_*.json</code> and <code>.txt</code>.</li>
+      <li>Aggregates a scorecard at <code>artifacts/automated_scorecard.csv</code> for quick publishing.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>4. Post Results</h2>
+    <p>
+      Pair the JSON summary with your hosted write-up, or append the CSV rows into longitudinal studies.
+      The evaluator keeps <code>solution.py</code> intact after each run, enabling quick iteration.
+    </p>
+    <div class="status">
+      <strong>Most recent run:</strong>
+      <span class="muted">see <code>artifacts/automated_results.json</code></span>
+    </div>
+    <pre><code>{
+  "model_name": "Claude Opus 4.1",
+  "conditions": [
+    {
+      "condition": "naked",
+      "summary": "3 failed, 8 passed in 0.02s",
+      "tests": {"passed": 8, "failed": 3, "errors": 0}
+    },
+    {
+      "condition": "scaffold",
+      "summary": "11 passed in 0.01s",
+      "tests": {"passed": 11, "failed": 0, "errors": 0}
+    }
+  ]
+}</code></pre>
+    <p class="muted">
+      Swap in your own model identifier and rerun to refresh the summary above.
+    </p>
+  </section>
+</main>
+</body>
+</html>

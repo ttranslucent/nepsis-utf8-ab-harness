@@ -1,0 +1,2 @@
+trial_id,condition,model_name_version,prompt_file,tests_passed,red_violations,notes
+,naked|scaffold,Claude Opus 4.1,prompts/naked.txt,0,,

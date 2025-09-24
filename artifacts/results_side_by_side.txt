@@ -1,0 +1,49 @@
+=== NAKED RESULTS ===
+...FF....F.                                                              [100%]
+=================================== FAILURES ===================================
+_________________________ test_hangul_jamo_cross_chunk _________________________
+
+    def test_hangul_jamo_cross_chunk():
+        # U+1112 U+1161 U+11AB (한) → NFC "한" U+D55C
+        out, errs = run_chunks([b"\xE1\x84\x92", b"\xE1\x85\xA1\xE1\x86\xAB"])
+>       assert out == "한" and errs == []
+E       AssertionError: assert ('\u1112\u1161\u11ab' == '\ud55c'
+E         
+E         - 한
+E         + 한)
+
+tests/test_stream_utf8_normalizer.py:35: AssertionError
+____________________________ test_overlong_rejected ____________________________
+
+    def test_overlong_rejected():
+        # Overlong "/" (0x2F) encoded as 0xC0 0xAF (invalid)
+        out, errs = run_chunks([b"\xC0\xAF"])
+>       assert out == "�"
+E       AssertionError: assert '��' == '�'
+E         
+E         - �
+E         + ��
+
+tests/test_stream_utf8_normalizer.py:40: AssertionError
+____________________________ test_truncated_at_end _____________________________
+
+    def test_truncated_at_end():
+        # Start of U+20AC (€) E2 82 AC but last byte missing
+        out, errs = run_chunks([b"\xE2\x82"])
+        assert out == "�"
+>       assert errs == [(0, 2)]
+E       assert [(2, 4)] == [(0, 2)]
+E         
+E         At index 0 diff: (2, 4) != (0, 2)
+E         Use -v to get more diff
+
+tests/test_stream_utf8_normalizer.py:69: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_stream_utf8_normalizer.py::test_hangul_jamo_cross_chunk - A...
+FAILED tests/test_stream_utf8_normalizer.py::test_overlong_rejected - Asserti...
+FAILED tests/test_stream_utf8_normalizer.py::test_truncated_at_end - assert [...
+3 failed, 8 passed in 0.02s
+
+=== SCAFFOLD RESULTS ===
+...........                                                              [100%]
+11 passed in 0.01s

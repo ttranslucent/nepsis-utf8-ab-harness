@@ -1,0 +1,13 @@
+thresholds:
+  red_sentinel: 0.8
+  hijack_promo: 0.6
+  zero_back_limits:
+    max_depth: 3
+    cooldown_seconds: 30
+logging:
+  audit_path: logs/audit.log
+  still_path: logs/still.log
+collapse_governor:
+  default_mode: OccamDefault
+  hickam_buffer_threshold: 0.5
+  zero_back_fallback_threshold: 0.8
