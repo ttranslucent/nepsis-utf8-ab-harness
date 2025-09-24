@@ -10,18 +10,41 @@ const PROMPT_PATHS = {
   nepsis: '/prompts/scaffold.txt',
 };
 
+// --- Python harness users can run locally if their LLM returned code ---
+const PY_HARNESS = `# ===== Paste your model's code ABOVE this line =====
+# Save as runner.py, then:  python3 runner.py
+
+def _bytes_label(s): return ' '.join(f'U+{b:02X}' for b in s)
+
+def _print_out(tag, s):
+    # s is a Python str; show each char and codepoint
+    print(f"{tag}: " + ' | '.join(f"{c} (U+{ord(c):04X})" for c in s))
+
+# Create normalizer instance from your model code
+norm = Utf8StreamNormalizer()
+
+# 1) Combining marks split across chunks: e + \u0301 → NFC should be 'é'
+norm.push(b'e')
+_print_out('chunk1', '')
+out = norm.push(bytes([0xCC,0x81]))  # U+0301
+_print_out('out1', out)
+
+# 2) Idempotent NFC: 'é' should remain 'é'
+out = norm.push('é'.encode('utf-8'))
+_print_out('idem', out)
+
+# 3) Hangul Jamo compose: ᄀ + ᅡ → '가'
+out = norm.push(bytes([0xE1,0x84,0x80, 0xE1,0x85,0xA1]))
+_print_out('hangul', out)
+
+# Final flush
+out = norm.finish()
+if out: _print_out('finish', out)
+`;
+
 // ---- helpers ----
 const get = (id) => document.getElementById(id);
 const cp = (ch) => 'U+' + (ch.codePointAt(0).toString(16).toUpperCase());
-
-function firstCharFrom(text) {
-  if (!text) return '';
-  const stripped = text.replace(/```[\s\S]*?```/g, '').trim();
-  for (const ch of stripped) {
-    if (!/\s|["'`]/.test(ch)) return ch;
-  }
-  return '';
-}
 
 function showToast(msg, ok = true) {
   const el = get('toast');
@@ -161,11 +184,36 @@ function renderScores(nakedEval, nepsisEval) {
   window._lastScoreRows = [...nakedEval.checks, ...nepsisEval.checks];
 }
 
+const harnessBtn = get('copy-harness');
+if (harnessBtn) {
+  harnessBtn.addEventListener('click', async (event) => {
+    const btn = event.currentTarget;
+    try {
+      btn.classList.add('is-armed');
+      await navigator.clipboard.writeText(PY_HARNESS);
+      flashCopy(btn, true, 'Copied!');
+    } catch (err) {
+      console.error(err);
+      flashCopy(btn, false, 'Copy failed');
+    } finally {
+      setTimeout(() => btn.classList.remove('is-armed'), 1200);
+    }
+  });
+}
+
+function looksLikeCode(txt = '') {
+  return /class\s+\w+|def\s+\w+\(|import\s+\w+|^\s*#/.test(txt);
+}
+
 const evaluateBtn = get('evaluate');
 if (evaluateBtn) {
   evaluateBtn.addEventListener('click', () => {
     const nakedText = get('naked-all').value;
     const nepsisText = get('nepsis-all').value;
+
+    if (looksLikeCode(nakedText) || looksLikeCode(nepsisText)) {
+      showToast('Looks like you pasted code. Copy the Python harness, run it, then paste the printed output.', false);
+    }
 
     const eN = scoreBlob(nakedText, 'naked');
     const eS = scoreBlob(nepsisText, 'nepsis');

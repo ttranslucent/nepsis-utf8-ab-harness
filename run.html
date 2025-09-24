@@ -58,15 +58,26 @@
   <div class="row">
     <div class="card">
       <h3>Naked Output (paste your model’s output)</h3>
-      <textarea id="naked-all" rows="10" placeholder="Paste the full output from your LLM using the *naked* prompt…"></textarea>
+      <textarea id="naked-all" rows="10" placeholder="Paste the full OUTPUT from your LLM using the naked prompt (not the code)…"></textarea>
     </div>
 
     <div class="card">
       <h3>Nepsis-Scaffold Output (paste your model’s output)</h3>
-      <textarea id="nepsis-all" rows="10" placeholder="Paste the full output from your LLM using the *scaffold* prompt…"></textarea>
+      <textarea id="nepsis-all" rows="10" placeholder="Paste the full OUTPUT from your LLM using the scaffold prompt (not the code)…"></textarea>
     </div>
   </div>
   <small style="color:var(--muted)">Tip: Pasting the model’s raw output is fine. We look for the expected characters anywhere in the text and flag replacement characters (�).</small>
+  <div class="card" style="margin:1rem 0">
+    <strong>If your model returned code:</strong>
+    <ol style="margin:.5rem 0 0 1.25rem">
+      <li>Click <em>Copy Python Harness</em> below.</li>
+      <li>Paste your model’s code at the top of a new <code>runner.py</code> file, then paste the harness under it.</li>
+      <li>Run <code>python3 runner.py</code> and paste the printed characters into the boxes above.</li>
+    </ol>
+    <div class="controls" style="margin-top:.5rem">
+      <button id="copy-harness" class="btn btn-ghost">Copy Python Harness</button>
+    </div>
+  </div>
   <div class="card" style="margin-top:1rem">
     <h3>Evaluator</h3>
     <table id="score"><thead><tr><th>Check</th><th>Naked</th><th>Nepsis</th><th>Notes</th></tr></thead>
