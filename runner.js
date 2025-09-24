@@ -10,6 +10,10 @@ const PROMPT_PATHS = {
   nepsis: '/prompts/scaffold.txt',
 };
 
+// --- strict baseline config ---
+const EXPECT = ['é', 'é', '가'];
+const RE_DECOMP = /e\u0301/g;
+
 // --- Python harness users can run locally if their LLM returned code ---
 const PY_HARNESS = `# ===== Paste your model's code ABOVE this line =====
 # Save as runner.py, then:  python3 runner.py
@@ -45,6 +49,21 @@ if out: _print_out('finish', out)
 // ---- helpers ----
 const get = (id) => document.getElementById(id);
 const cp = (ch) => 'U+' + (ch.codePointAt(0).toString(16).toUpperCase());
+
+function stripFences(text = '') {
+  return text.replace(/```[\s\S]*?```/g, '').trim();
+}
+
+function firstNCharsPrintable(text, count) {
+  const result = [];
+  if (!text) return result;
+  for (const ch of stripFences(text)) {
+    if (/\s|["'`]/.test(ch)) continue;
+    result.push(ch);
+    if (result.length === count) break;
+  }
+  return result;
+}
 
 function showToast(msg, ok = true) {
   const el = get('toast');
@@ -129,27 +148,46 @@ for (const [kind, button] of Object.entries(copyButtons)) {
 }
 
 // ---- scoring ----
-function scoreBlob(text, label) {
+function scoreBlobStrict(text, label) {
   const rows = [];
   let score = 0;
+  const source = text ?? '';
+  const got = firstNCharsPrintable(source, 3);
 
-  for (const c of CASES) {
-    const found = (text ?? '').includes(c.expect);
-    rows.push({
-      check: c.name,
-      label,
-      pass: found,
-      note: found ? '' : `did not find ${c.expect} (${cp(c.expect)})`,
-    });
-    if (found) score += 1;
+  const cases = [
+    { name: 'Combining marks split over chunks', idx: 0 },
+    { name: 'Idempotent NFC', idx: 1 },
+    { name: 'Hangul Jamo compose', idx: 2 },
+  ];
+
+  const posComposed = source.indexOf('é');
+  const posDecomp = source.search(RE_DECOMP);
+  const decomposedFirst = posDecomp !== -1 && (posComposed === -1 || posDecomp < posComposed);
+
+  for (const cfg of cases) {
+    const want = EXPECT[cfg.idx];
+    const ch = got[cfg.idx];
+    let pass = ch === want;
+    let note = '';
+
+    if (cfg.idx === 0 && decomposedFirst) {
+      pass = false;
+      note = 'Decomposed e+◌́ appears before composed é';
+    } else if (!pass) {
+      const gotDesc = ch ? `${cp(ch)} '${ch}'` : '∅';
+      note = `got ${gotDesc} want ${cp(want)} '${want}'`;
+    }
+
+    rows.push({ check: cfg.name, label, pass, note });
+    if (pass) score += 1;
   }
 
-  const hasReplacement = /\uFFFD/.test(text ?? '');
+  const hasReplacement = /\uFFFD/.test(source);
   rows.push({
     check: 'No replacement characters',
     label,
     pass: !hasReplacement,
-    note: hasReplacement ? 'Found U+FFFD (�) in output' : '',
+    note: hasReplacement ? 'Found U+FFFD (�)' : '',
   });
   if (!hasReplacement) score += 1;
 
@@ -215,8 +253,8 @@ if (evaluateBtn) {
       showToast('Looks like you pasted code. Copy the Python harness, run it, then paste the printed output.', false);
     }
 
-    const eN = scoreBlob(nakedText, 'naked');
-    const eS = scoreBlob(nepsisText, 'nepsis');
+    const eN = scoreBlobStrict(nakedText, 'naked');
+    const eS = scoreBlobStrict(nepsisText, 'nepsis');
 
     renderScores(eN, eS);
     showToast('Scores updated');

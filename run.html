@@ -67,6 +67,11 @@
     </div>
   </div>
   <small style="color:var(--muted)">Tip: Pasting the model’s raw output is fine. We look for the expected characters anywhere in the text and flag replacement characters (�).</small>
+  <small style="color:var(--muted)">
+    Evaluator expects the first three printable characters in each paste to be:
+    <code>é</code>, <code>é</code>, <code>가</code>. It fails if a decomposed sequence
+    (<code>e◌́</code>) appears before composed <code>é</code>, and if any replacement char (�) is present.
+  </small>
   <div class="card" style="margin:1rem 0">
     <strong>If your model returned code:</strong>
     <ol style="margin:.5rem 0 0 1.25rem">
