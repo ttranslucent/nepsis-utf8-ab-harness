@@ -1,0 +1,35 @@
+{
+  "generated_at": "2025-09-24T15:44:02.735411+00:00",
+  "model_name": "Claude Opus 4.1",
+  "notes": "Automated run",
+  "conditions": [
+    {
+      "condition": "naked",
+      "solution": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/solution_naked.py",
+      "prompt": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/prompts/naked.txt",
+      "returncode": 1,
+      "summary": "3 failed, 8 passed in 0.02s",
+      "stdout": "...FF....F.                                                              [100%]\n=================================== FAILURES ===================================\n_________________________ test_hangul_jamo_cross_chunk _________________________\n\n    def test_hangul_jamo_cross_chunk():\n        # U+1112 U+1161 U+11AB (\u1112\u1161\u11ab) \u2192 NFC \"\ud55c\" U+D55C\n        out, errs = run_chunks([b\"\\xE1\\x84\\x92\", b\"\\xE1\\x85\\xA1\\xE1\\x86\\xAB\"])\n>       assert out == \"\ud55c\" and errs == []\nE       AssertionError: assert ('\\u1112\\u1161\\u11ab' == '\\ud55c'\nE         \nE         - \ud55c\nE         + \u1112\u1161\u11ab)\n\ntests/test_stream_utf8_normalizer.py:35: AssertionError\n____________________________ test_overlong_rejected ____________________________\n\n    def test_overlong_rejected():\n        # Overlong \"/\" (0x2F) encoded as 0xC0 0xAF (invalid)\n        out, errs = run_chunks([b\"\\xC0\\xAF\"])\n>       assert out == \"\ufffd\"\nE       AssertionError: assert '\ufffd\ufffd' == '\ufffd'\nE         \nE         - \ufffd\nE         + \ufffd\ufffd\n\ntests/test_stream_utf8_normalizer.py:40: AssertionError\n____________________________ test_truncated_at_end _____________________________\n\n    def test_truncated_at_end():\n        # Start of U+20AC (\u20ac) E2 82 AC but last byte missing\n        out, errs = run_chunks([b\"\\xE2\\x82\"])\n        assert out == \"\ufffd\"\n>       assert errs == [(0, 2)]\nE       assert [(2, 4)] == [(0, 2)]\nE         \nE         At index 0 diff: (2, 4) != (0, 2)\nE         Use -v to get more diff\n\ntests/test_stream_utf8_normalizer.py:69: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_stream_utf8_normalizer.py::test_hangul_jamo_cross_chunk - A...\nFAILED tests/test_stream_utf8_normalizer.py::test_overlong_rejected - Asserti...\nFAILED tests/test_stream_utf8_normalizer.py::test_truncated_at_end - assert [...\n3 failed, 8 passed in 0.02s",
+      "stderr": "",
+      "tests": {
+        "passed": 8,
+        "failed": 3,
+        "errors": 0
+      }
+    },
+    {
+      "condition": "scaffold",
+      "solution": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/solution_scaffold.py",
+      "prompt": "/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/prompts/scaffold.txt",
+      "returncode": 0,
+      "summary": "11 passed in 0.01s",
+      "stdout": "...........                                                              [100%]\n11 passed in 0.01s",
+      "stderr": "",
+      "tests": {
+        "passed": 11,
+        "failed": 0,
+        "errors": 0
+      }
+    }
+  ]
+}

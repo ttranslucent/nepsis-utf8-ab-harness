@@ -3,14 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta property="og:title" content="Nepsis — The Missing Interpretant Layer in AI"/>
-<meta property="og:description" content="A/B: Naked vs Nepsis-scaffold on a streaming UTF-8→NFC validator. 8/11 → 11/11 with guardrails + process."/>
-<meta property="og:type" content="website"/>
-<meta property="og:image" content="https://your-domain/utf8_nfc_ab_card.png"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="Nepsis — The Missing Interpretant Layer in AI"/>
-<title>Nepsis — The Missing Interpretant Layer in AI</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+<title>Nepsis: The Missing Interpretant Layer in AI</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -129,238 +122,9 @@ h1 {
   transform: translateY(-2px);
 }
 
-.nav-btn:focus {
-  outline: 2px solid var(--cyan);
-  outline-offset: 2px;
-}
-
-/* Accessibility */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* Mobile Responsive */
-@media (max-width: 900px) {
-  .container {
-    padding: 20px 12px;
-  }
-
-  h1 {
-    font-size: 2.2rem;
-    line-height: 1.1;
-    margin-bottom: 16px;
-  }
-
-  .subtitle {
-    font-size: 1.2rem;
-    margin-bottom: 20px;
-  }
-
-  .breakthrough {
-    padding: 16px 24px;
-    margin-top: 16px;
-  }
-
-  .breakthrough-text {
-    font-size: 1rem;
-    line-height: 1.4;
-  }
-
-  .carousel-container {
-    margin: 40px 0;
-    padding: 20px;
-    position: relative;
-  }
-
-  .carousel-container::after {
-    content: "← Swipe to navigate →";
-    position: absolute;
-    bottom: 8px;
-    right: 12px;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    opacity: 0.6;
-  }
-
-  .carousel-nav {
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 24px;
-  }
-
-  .nav-btn {
-    padding: 10px 16px;
-    font-size: 0.85rem;
-    border-radius: 6px;
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-
-  .test-overview,
-  .results-comparison {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-
-  .test-card {
-    padding: 20px;
-  }
-
-  .test-title {
-    font-size: 1.1rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .test-results {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .code-block {
-    padding: 16px;
-    font-size: 0.8rem;
-    overflow-x: auto;
-  }
-
-  .carousel-content {
-    min-height: 0;
-  }
-
-  .architecture-visual {
-    flex-direction: column;
-    gap: 20px;
-    padding: 20px 0;
-  }
-
-  .arch-node {
-    width: 100%;
-    max-width: 280px;
-    margin: 0 auto;
-  }
-
-  .rfc-container {
-    padding: 20px;
-    font-size: 0.85rem;
-  }
-
-  .rfc-title {
-    font-size: 1rem;
-  }
-
-  .implementation-card {
-    padding: 20px;
-  }
-
-  .impl-title {
-    font-size: 1.2rem;
-  }
-
-  .score-display {
-    font-size: 1.6rem;
-  }
-
-  .insight-section {
-    margin: 40px 0;
-    padding: 24px;
-  }
-
-  .insight-title {
-    font-size: 1.6rem;
-  }
-
-  .insight-text {
-    font-size: 1rem;
-  }
-
-  .cta-section {
-    padding: 40px 20px;
-  }
-
-  .cta-title {
-    font-size: 2rem;
-  }
-
-  .cta-text {
-    font-size: 1rem;
-  }
-
-  .cta-button {
-    padding: 16px 32px;
-    font-size: 1rem;
-    min-height: 48px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    touch-action: manipulation;
-  }
-}
-
-/* Extra small mobile phones */
-@media (max-width: 480px) {
-  .container {
-    padding: 16px 8px;
-  }
-
-  h1 {
-    font-size: 1.8rem;
-  }
-
-  .subtitle {
-    font-size: 1rem;
-  }
-
-  .breakthrough-text {
-    font-size: 0.9rem;
-  }
-
-  .carousel-container {
-    padding: 16px;
-  }
-
-  .nav-btn {
-    padding: 8px 12px;
-    font-size: 0.8rem;
-    min-height: 44px;
-  }
-
-  .test-card,
-  .implementation-card {
-    padding: 16px;
-  }
-
-  .code-block {
-    padding: 12px;
-    font-size: 0.75rem;
-  }
-
-  .insight-text {
-    font-size: 0.95rem;
-  }
-
-  .insight-text > div[style*="grid"] {
-    grid-template-columns: 1fr !important;
-    gap: 12px;
-  }
-
-  .cta-title {
-    font-size: 1.8rem;
-  }
-
-  .arch-node {
-    padding: 20px;
-  }
-}
-
 .carousel-content {
   min-height: 500px;
   position: relative;
-  touch-action: pan-y;
-  user-select: none;
 }
 
 .carousel-slide {
@@ -672,28 +436,6 @@ h1 {
   border: 2px solid var(--purple);
   border-radius: 20px;
   text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.insight-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 50%;
-  height: 4px;
-  background: var(--red);
-}
-
-.insight-section::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 50%;
-  height: 4px;
-  background: var(--green);
 }
 
 .insight-title {
@@ -792,7 +534,7 @@ h1 {
 <div class="container">
   <!-- Hero Section -->
   <div class="hero">
-    <h1>Nepsis: The Missing Interpretant Layer</h1>
+    <h1>The Missing Interpretant Layer</h1>
     <div class="subtitle">How a UTF-8 Validator Proves AI's Fundamental Limitation</div>
     <div class="breakthrough">
       <div class="breakthrough-text">
@@ -805,10 +547,10 @@ h1 {
   <!-- Main Carousel -->
   <div class="carousel-container">
     <div class="carousel-nav">
-      <button class="nav-btn active" onclick="showSlide(0)" aria-label="View Challenge" aria-selected="true" tabindex="0">The Challenge</button>
-      <button class="nav-btn" onclick="showSlide(1)" aria-label="View RFC Constraints" aria-selected="false" tabindex="-1">RFC Constraints</button>
-      <button class="nav-btn" onclick="showSlide(2)" aria-label="View Test Results" aria-selected="false" tabindex="-1">Test Results</button>
-      <button class="nav-btn" onclick="showSlide(3)" aria-label="View Architecture" aria-selected="false" tabindex="-1">Architecture</button>
+      <button class="nav-btn active" onclick="showSlide(0)">The Challenge</button>
+      <button class="nav-btn" onclick="showSlide(1)">RFC Constraints</button>
+      <button class="nav-btn" onclick="showSlide(2)">Test Results</button>
+      <button class="nav-btn" onclick="showSlide(3)">Architecture</button>
     </div>
 
     <div class="carousel-content">
@@ -818,10 +560,10 @@ h1 {
           <div class="test-card">
             <div class="test-title">
               <span>Naked Implementation</span>
-              <span class="label failed">8/11 (73%)</span>
+              <span class="label failed">73% Pass</span>
             </div>
             <div class="test-description">
-              Standard approach without interpretant verification.
+              Standard approach without interpretant verification. 
               Implements UTF-8 validation and NFC normalization directly.
             </div>
             <div class="code-block">
@@ -846,7 +588,7 @@ h1 {
           <div class="test-card">
             <div class="test-title">
               <span>Scaffold Implementation</span>
-              <span class="label success">11/11 (100%)</span>
+              <span class="label success">100% Pass</span>
             </div>
             <div class="test-description">
               Nepsis architecture with Red/Blue channels enforcing interpretant verification at every step.
@@ -872,29 +614,13 @@ h1 {
             </div>
           </div>
         </div>
-
-        <!-- Quick Comparison Table -->
-        <div style="margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div style="padding: 15px; background: rgba(255,71,87,0.1); border: 1px solid var(--red); border-radius: 8px;">
-            <div style="font-weight: 700; margin-bottom: 8px; color: var(--red);">Naked — 8/11</div>
-            <div style="font-size: 0.9rem; color: var(--text-muted);">
-              Hangul NFC: ❌ • Overlong "/": ❌ • Tail span: ❌
-            </div>
-          </div>
-          <div style="padding: 15px; background: rgba(0,255,136,0.1); border: 1px solid var(--green); border-radius: 8px;">
-            <div style="font-weight: 700; margin-bottom: 8px; color: var(--green);">Scaffold — 11/11</div>
-            <div style="font-size: 0.9rem; color: var(--text-muted);">
-              Hangul NFC: ✅ • Overlong "/": ✅ • Tail span: ✅
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- Slide 2: RFC Constraints -->
       <div class="carousel-slide">
         <div class="rfc-container">
           <div class="rfc-header">RFC-3629 UTF-8 Validation Requirements</div>
-
+          
           <div class="rfc-section">
             <div class="rfc-title">NON-NEGOTIABLE CONSTRAINTS (Red Channel)</div>
             <ul class="rfc-list">
@@ -908,7 +634,7 @@ h1 {
           </div>
 
           <div class="constraint-critical">
-            <strong>Critical Requirement:</strong> On any invalid subsequence, emit exactly one U+FFFD
+            <strong>Critical Requirement:</strong> On any invalid subsequence, emit exactly one U+FFFD 
             and record precise byte indices [start, end) in global coordinates.
           </div>
 
@@ -1069,7 +795,7 @@ h1 {
               Security boundaries
             </div>
           </div>
-
+          
           <div class="arch-node blue-channel">
             <div class="node-title">Blue Channel</div>
             <div class="node-desc">
@@ -1078,7 +804,7 @@ h1 {
               State management
             </div>
           </div>
-
+          
           <div class="arch-node interpretant">
             <div class="node-title">Interpretant</div>
             <div class="node-desc">
@@ -1093,10 +819,10 @@ h1 {
           <h3 style="color: var(--purple); margin-bottom: 20px;">The Missing Dimension</h3>
           <p style="line-height: 1.8; color: var(--text);">
             Current AI operates with <strong>dyadic reasoning</strong>: Signal → Response.<br><br>
-            This creates the "jailing" problem where plausible patterns override correct answers
+            This creates the "jailing" problem where plausible patterns override correct answers 
             (JAILING vs JINGALL, accepting overlongs, corrupting boundaries).<br><br>
             Nepsis adds <strong>triadic reasoning</strong>: Signal → Object → <span style="color: var(--cyan); font-weight: bold;">Interpretant</span><br><br>
-            The interpretant verifies that the response actually satisfies the constraints,
+            The interpretant verifies that the response actually satisfies the constraints, 
             not just that it matches a likely pattern.
           </p>
         </div>
@@ -1106,160 +832,49 @@ h1 {
 
   <!-- Key Insight -->
   <div class="insight-section">
-    <div class="insight-title">One Failure Is All It Takes</div>
-    <div style="font-size: 1.1rem; color: var(--text-muted); margin: -10px 0 25px; font-style: italic;">
-      In high-consequence systems, averages don't matter. Guarantees do.
-    </div>
+    <div class="insight-title">The 27% That Kills</div>
     <div class="insight-text">
-      Those 3 failures aren't random bugs. They are <span class="insight-highlight">systematic architectural blindness</span>.<br><br>
-      It's not about the 27%. In high-consequence systems, <span class="insight-highlight">a single miss is enough to erase the average</span>.<br><br>
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 25px 0; text-align: left;">
-        <div style="padding: 10px; border-left: 3px solid var(--red); background: rgba(255,71,87,0.05);">
-          <strong>One overlong acceptance:</strong><br> security breach
-        </div>
-        <div style="padding: 10px; border-left: 3px solid var(--red); background: rgba(255,71,87,0.05);">
-          <strong>One boundary corruption:</strong><br> data loss
-        </div>
-        <div style="padding: 10px; border-left: 3px solid var(--red); background: rgba(255,71,87,0.05);">
-          <strong>One wrong error span:</strong><br> undebuggable cascade
-        </div>
-      </div>
-      The system doesn't know when it's wrong. It confidently returns corrupt data, accepts invalid input,
-      and misreports errors.<br><br>
-      In medicine, aviation, finance, or AGI, <span style="color: var(--red); font-weight: 700;">one miss is enough to take down the system</span>.<br><br>
-      <div style="margin: 30px 0; padding: 20px; background: rgba(0,255,136,0.1); border: 2px solid var(--green); border-radius: 12px;">
-        <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 10px;">
-          That's the architectural distinction: <span style="color: var(--cyan);">Probability vs Guarantee</span>
-        </div>
-        <div>The scaffold didn't just improve odds. It added the ability to <span style="color: var(--green); font-weight: 700;">guarantee correctness when it matters</span>.</div>
-      </div>
-    </div>
-    <div style="margin-top: 25px; font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
-      *Note: 27% = 3 of 11 failures in this test set. In practice, one miss is enough.
+      Those 3 failures aren't random bugs. They're <span class="insight-highlight">systematic architectural blindness</span>.<br><br>
+      The system doesn't know when it's wrong. It returns corrupt data, accepts invalid input, 
+      and misreports errors—all while appearing confident.<br><br>
+      In medicine, aviation, finance, or AGI, <span class="insight-highlight">those 27% are catastrophic failures</span>.<br><br>
+      The scaffold didn't just fix bugs. It added the ability to <span class="insight-highlight">know what valid reasoning looks like</span>.
     </div>
   </div>
 
   <!-- Call to Action -->
   <div class="cta-section">
-<h2 class="cta-title">This Changes Things</h2>
-<p class="cta-text">
-  As an ER doctor, I know pattern recognition alone can miss critical diagnoses and delay intervention.<br>
-  I saw the same flaw in AI and designed Nepsis to navigate this gap.<br>
-  Not theory. Working code. Proven architecture.
-</p>
-    <!-- Primary CTA: public, plug-and-play -->
-    <div style="margin-top:24px; display:flex; justify-content:center;">
-      <a class="cta-button" href="/run.html">
-        Run the Test Yourself
-      </a>
+    <div class="cta-title">This Changes Everything</div>
+    <div class="cta-text">
+      From an ER doctor who discovered AI's missing dimension through medical necessity.<br>
+      Not theory. Working code. Proven architecture.
     </div>
-    <!-- Small IP note + NDA link -->
-    <p style="margin-top:16px; font-size:0.95rem; color:var(--text-muted);">
-      The scaffolded prompt/code is proprietary. For consideration of access under NDA, email
-      <a href="mailto:ttranslucent@gmail.com" style="color:var(--cyan); text-decoration:none;">
-        ttranslucent@gmail.com
-      </a>.
-    </p>
+    <a href="#" class="cta-button">Let's Unjail AI Together</a>
+    <div style="margin-top: 30px; color: var(--text-muted);">
+      @DarioAmodei @AnthropicAI @OpenAI
+    </div>
   </div>
 </div>
 
 <script>
 let currentSlide = 0;
-let autoAdvanceInterval = null;
 const slides = document.querySelectorAll('.carousel-slide');
 const navBtns = document.querySelectorAll('.nav-btn');
 
-// Touch/swipe support
-let touchStartX = 0;
-let touchEndX = 0;
-const carouselContent = document.querySelector('.carousel-content');
-
 function showSlide(index) {
-  // Clear auto-advance when user manually interacts
-  if (autoAdvanceInterval) {
-    clearInterval(autoAdvanceInterval);
-    autoAdvanceInterval = null;
-  }
-
   slides[currentSlide].classList.remove('active');
   navBtns[currentSlide].classList.remove('active');
-  navBtns[currentSlide].setAttribute('aria-selected', 'false');
-  navBtns[currentSlide].setAttribute('tabindex', '-1');
-
+  
   currentSlide = index;
   slides[currentSlide].classList.add('active');
   navBtns[currentSlide].classList.add('active');
-  navBtns[currentSlide].setAttribute('aria-selected', 'true');
-  navBtns[currentSlide].setAttribute('tabindex', '0');
 }
 
-function nextSlide() {
-  if (currentSlide < slides.length - 1) {
-    showSlide(currentSlide + 1);
-  }
-}
-
-function prevSlide() {
-  if (currentSlide > 0) {
-    showSlide(currentSlide - 1);
-  }
-}
-
-// Touch event handlers
-carouselContent.addEventListener('touchstart', (e) => {
-  touchStartX = e.changedTouches[0].screenX;
-}, { passive: true });
-
-carouselContent.addEventListener('touchend', (e) => {
-  touchEndX = e.changedTouches[0].screenX;
-  handleSwipe();
-}, { passive: true });
-
-function handleSwipe() {
-  const swipeThreshold = 50; // Minimum swipe distance
-  const swipeDistance = touchEndX - touchStartX;
-
-  if (Math.abs(swipeDistance) > swipeThreshold) {
-    if (swipeDistance > 0) {
-      // Swiped right - go to previous slide
-      prevSlide();
-    } else {
-      // Swiped left - go to next slide
-      nextSlide();
-    }
-  }
-}
-
-// Keyboard navigation
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft') {
-    prevSlide();
-  } else if (e.key === 'ArrowRight') {
-    nextSlide();
-  }
-});
-
-// Start auto-advance only if motion is not reduced
-function startAutoAdvance() {
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    autoAdvanceInterval = setInterval(() => {
-      const nextSlide = (currentSlide + 1) % slides.length;
-      slides[currentSlide].classList.remove('active');
-      navBtns[currentSlide].classList.remove('active');
-      navBtns[currentSlide].setAttribute('aria-selected', 'false');
-      navBtns[currentSlide].setAttribute('tabindex', '-1');
-
-      currentSlide = nextSlide;
-      slides[currentSlide].classList.add('active');
-      navBtns[currentSlide].classList.add('active');
-      navBtns[currentSlide].setAttribute('aria-selected', 'true');
-      navBtns[currentSlide].setAttribute('tabindex', '0');
-    }, 15000); // 15 seconds per slide for more reading time
-  }
-}
-
-// Start auto-advance on load
-startAutoAdvance();
+// Auto-advance carousel every 10 seconds
+setInterval(() => {
+  const nextSlide = (currentSlide + 1) % slides.length;
+  showSlide(nextSlide);
+}, 10000);
 </script>
 
 </body>

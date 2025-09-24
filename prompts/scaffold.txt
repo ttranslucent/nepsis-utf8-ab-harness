@@ -1,0 +1,24 @@
+You are implementing a streaming UTF‑8 validator + NFC normalizer under strict constraints.
+Return ONLY the Python code for solution.py that defines Utf8StreamNormalizer.
+
+NON‑NEGOTIABLE CONSTRAINTS (Red Channel):
+1) RFC‑3629 exact UTF‑8: reject overlongs; forbid U+D800–U+DFFF; forbid >U+10FFFF; reject lone continuation/truncated; reject noncharacters in all planes.
+2) On any invalid subsequence, emit exactly one U+FFFD and append (start,end) byte indices in GLOBAL coordinates to self.errors.
+3) Streaming NFC: Do NOT normalize per chunk. Maintain a buffer of the current canonical segment and flush only on seeing a starter (combining class 0) or at finish(). Assume at most 64 consecutive non‑starters.
+4) No cheats: never use bytes.decode(..., errors=...). Implement a UTF‑8 state machine to locate precise error spans.
+
+PROCESS (Blue Channel / STILL):
+- Maintain explicit decoder state: (expected, accum, start_index). On violation, advance minimally to avoid double‑counting and record [start,end).
+- Maintain normalization buffer as a list of code points for the current segment; on flush, convert to str and normalize to NFC once.
+- Keep a running byte_offset to map local chunk positions → global positions.
+- Unit‑test invariants (mentally): zero false accepts of overlongs; correct cross‑chunk composition for A + U+0301; exact span for ED A0 80; no double emission of U+FFFD on cascades.
+
+OUTPUT SHAPE:
+- Define class Utf8StreamNormalizer with methods push(self, chunk: bytes) -> str and finish(self) -> str and an attribute self.errors: list[tuple[int,int]].
+
+IMPLEMENTATION HINTS (allowed):
+- Use unicodedata.normalize and unicodedata.combining for composition and starter detection.
+- Small ring buffer for pending bytes at chunk edges; small list for code points of current canonical segment.
+- When a non‑starter arrives and no starter previously, continue buffering; when starter arrives, flush previous segment.
+
+Return ONLY the code for solution.py, no prose.

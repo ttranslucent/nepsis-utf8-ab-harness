@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head>
+  <meta charset="utf-8"/><title>Nepsis A/B Demo Runner</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    main{max-width:960px;margin:3rem auto;padding:0 1rem}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .card{padding:1rem;border:1px solid #e5e7eb;border-radius:.75rem;background:#fff}
+    .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin:1rem 0}
+    button{padding:.6rem 1rem;border:0;border-radius:.75rem;cursor:pointer}
+    pre{background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:.75rem;overflow:auto}
+    table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;padding:.5rem;text-align:left}
+    .ok{color:#065f46}.bad{color:#991b1b}
+  </style>
+</head><body><main>
+  <h1>Nepsis A/B Demo Runner</h1>
+  <p>Runs a browser-side reproduction of the UTF-8→NFC task: <em>Naked</em> vs <em>Nepsis-scaffolded</em>, with a simple evaluator & downloadable scorecard.</p>
+  <div class="controls">
+    <button id="run-naked">Run Naked</button>
+    <button id="run-nepsis">Run Nepsis-Scaffold</button>
+    <button id="run-both">Run Both + Evaluate</button>
+    <button id="download-csv">Download Scorecard CSV</button>
+    <a href="/" style="margin-left:auto">← Back</a>
+  </div>
+  <div class="row">
+    <div class="card"><h3>Naked Output</h3><pre id="out-naked" aria-live="polite">—</pre></div>
+    <div class="card"><h3>Nepsis-Scaffold Output</h3><pre id="out-nepsis" aria-live="polite">—</pre></div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <h3>Evaluator</h3>
+    <table id="score"><thead><tr><th>Check</th><th>Naked</th><th>Nepsis</th><th>Notes</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><th>Total Score</th><th id="total-naked">0</th><th id="total-nepsis">0</th><th></th></tr></tfoot>
+    </table>
+  </div>
+</main><script src="/runner.js"></script></body></html>

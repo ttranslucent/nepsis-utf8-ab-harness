@@ -1,0 +1,3 @@
+trial_id,condition,model_name_version,prompt_file,tests_passed,tests_failed,tests_errored,notes
+,naked,Claude Opus 4.1,/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/prompts/naked.txt,8,3,0,Automated run
+,scaffold,Claude Opus 4.1,/Users/trentthorn/nepsis_posts/Nepsis Experiment/utf8_nfc_experiment/prompts/scaffold.txt,11,0,0,Automated run
