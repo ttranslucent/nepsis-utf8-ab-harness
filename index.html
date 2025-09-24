@@ -145,35 +145,222 @@ h1 {
 /* Mobile Responsive */
 @media (max-width: 900px) {
   .container {
-    padding: 32px 16px;
+    padding: 20px 12px;
   }
 
   h1 {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+  }
+
+  .breakthrough {
+    padding: 16px 24px;
+    margin-top: 16px;
+  }
+
+  .breakthrough-text {
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .carousel-container {
+    margin: 40px 0;
+    padding: 20px;
+    position: relative;
+  }
+
+  .carousel-container::after {
+    content: "← Swipe to navigate →";
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .carousel-nav {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .nav-btn {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 
   .test-overview,
   .results-comparison {
     grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .test-card {
+    padding: 20px;
+  }
+
+  .test-title {
+    font-size: 1.1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .test-results {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .code-block {
+    padding: 16px;
+    font-size: 0.8rem;
+    overflow-x: auto;
   }
 
   .carousel-content {
     min-height: 0;
   }
 
-  .carousel-nav {
-    flex-wrap: wrap;
-  }
-
   .architecture-visual {
     flex-direction: column;
-    gap: 30px;
+    gap: 20px;
+    padding: 20px 0;
+  }
+
+  .arch-node {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .rfc-container {
+    padding: 20px;
+    font-size: 0.85rem;
+  }
+
+  .rfc-title {
+    font-size: 1rem;
+  }
+
+  .implementation-card {
+    padding: 20px;
+  }
+
+  .impl-title {
+    font-size: 1.2rem;
+  }
+
+  .score-display {
+    font-size: 1.6rem;
+  }
+
+  .insight-section {
+    margin: 40px 0;
+    padding: 24px;
+  }
+
+  .insight-title {
+    font-size: 1.6rem;
+  }
+
+  .insight-text {
+    font-size: 1rem;
+  }
+
+  .cta-section {
+    padding: 40px 20px;
+  }
+
+  .cta-title {
+    font-size: 2rem;
+  }
+
+  .cta-text {
+    font-size: 1rem;
+  }
+
+  .cta-button {
+    padding: 16px 32px;
+    font-size: 1rem;
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+}
+
+/* Extra small mobile phones */
+@media (max-width: 480px) {
+  .container {
+    padding: 16px 8px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .breakthrough-text {
+    font-size: 0.9rem;
+  }
+
+  .carousel-container {
+    padding: 16px;
+  }
+
+  .nav-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    min-height: 44px;
+  }
+
+  .test-card,
+  .implementation-card {
+    padding: 16px;
+  }
+
+  .code-block {
+    padding: 12px;
+    font-size: 0.75rem;
+  }
+
+  .insight-text {
+    font-size: 0.95rem;
+  }
+
+  .insight-text > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .cta-title {
+    font-size: 1.8rem;
+  }
+
+  .arch-node {
+    padding: 20px;
   }
 }
 
 .carousel-content {
   min-height: 500px;
   position: relative;
+  touch-action: pan-y;
+  user-select: none;
 }
 
 .carousel-slide {
@@ -982,8 +1169,13 @@ let autoAdvanceInterval = null;
 const slides = document.querySelectorAll('.carousel-slide');
 const navBtns = document.querySelectorAll('.nav-btn');
 
+// Touch/swipe support
+let touchStartX = 0;
+let touchEndX = 0;
+const carouselContent = document.querySelector('.carousel-content');
+
 function showSlide(index) {
-  // Clear auto-advance when user manually clicks
+  // Clear auto-advance when user manually interacts
   if (autoAdvanceInterval) {
     clearInterval(autoAdvanceInterval);
     autoAdvanceInterval = null;
@@ -1001,12 +1193,49 @@ function showSlide(index) {
   navBtns[currentSlide].setAttribute('tabindex', '0');
 }
 
+function nextSlide() {
+  if (currentSlide < slides.length - 1) {
+    showSlide(currentSlide + 1);
+  }
+}
+
+function prevSlide() {
+  if (currentSlide > 0) {
+    showSlide(currentSlide - 1);
+  }
+}
+
+// Touch event handlers
+carouselContent.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+carouselContent.addEventListener('touchend', (e) => {
+  touchEndX = e.changedTouches[0].screenX;
+  handleSwipe();
+}, { passive: true });
+
+function handleSwipe() {
+  const swipeThreshold = 50; // Minimum swipe distance
+  const swipeDistance = touchEndX - touchStartX;
+
+  if (Math.abs(swipeDistance) > swipeThreshold) {
+    if (swipeDistance > 0) {
+      // Swiped right - go to previous slide
+      prevSlide();
+    } else {
+      // Swiped left - go to next slide
+      nextSlide();
+    }
+  }
+}
+
 // Keyboard navigation
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' && currentSlide > 0) {
-    showSlide(currentSlide - 1);
-  } else if (e.key === 'ArrowRight' && currentSlide < slides.length - 1) {
-    showSlide(currentSlide + 1);
+  if (e.key === 'ArrowLeft') {
+    prevSlide();
+  } else if (e.key === 'ArrowRight') {
+    nextSlide();
   }
 });
 
