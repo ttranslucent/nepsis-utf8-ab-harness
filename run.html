@@ -3,28 +3,56 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="/styles.css"/>
   <style>
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-    main{max-width:960px;margin:3rem auto;padding:0 1rem}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-    .card{padding:1rem;border:1px solid #e5e7eb;border-radius:.75rem;background:#fff}
-    .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin:1rem 0}
-    label{font-size:.9rem;color:#374151;display:block;margin-top:.5rem}
-    .card label:first-of-type{margin-top:0}
-    textarea{width:100%;padding:.6rem;border:1px solid #e5e7eb;border-radius:.5rem;margin:.25rem 0 1rem 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;min-height:2.5rem}
-    button{padding:.6rem 1rem;border:0;border-radius:.75rem;cursor:pointer}
-    pre{background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:.75rem;overflow:auto}
-    table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;padding:.5rem;text-align:left}
-    .ok{color:#065f46}.bad{color:#991b1b}
+  :root{
+    --bg:#0b1220;
+    --card:#0f172a;
+    --ink:#e6edf6;
+    --muted:#9fb0c9;
+    --line:#1f2937;
+    --accent:#67e8f9;
+    --accent-2:#c084fc;
+    --ok:#10b981;
+    --bad:#ef4444;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;color:var(--ink);background:
+      radial-gradient(1200px 600px at 10% -10%,rgba(103,232,249,.12),transparent 60%),
+      radial-gradient(1000px 500px at 90% -20%,rgba(192,132,252,.10),transparent 60%),
+      var(--bg);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  }
+  main{max-width:1100px;margin:3rem auto;padding:0 1rem}
+  h1{font-size:2rem;margin:.25rem 0 1rem;background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  p{color:var(--muted)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:1rem}
+  .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin:1rem 0}
+  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);padding:.6rem 1rem;border-radius:.8rem;cursor:pointer;transition:transform .05s ease,border-color .2s}
+  .btn:hover{border-color:rgba(255,255,255,.25)}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{border-color:transparent;background:linear-gradient(90deg,rgba(103,232,249,.20),rgba(192,132,252,.20));box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
+  .btn-ghost{background:transparent}
+  textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  label{display:block;color:var(--muted);font-size:.9rem;margin:.25rem 0 .35rem}
+  .card label:first-of-type{margin-top:0}
+  table{width:100%;border-collapse:collapse;color:var(--ink)}
+  th,td{border-bottom:1px solid var(--line);padding:.6rem;text-align:left}
+  .ok{color:var(--ok)}.bad{color:var(--bad)}
+  .back{margin-left:auto;color:var(--accent);text-decoration:none}
+  .pulse{box-shadow:0 0 0 6px rgba(103,232,249,.15);transition:box-shadow .35s ease}
+  #toast{position:fixed;right:18px;bottom:18px;background:var(--card);border:1px solid var(--line);color:var(--ink);padding:.55rem .8rem;border-radius:.6rem;opacity:0;transform:translateY(8px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+  #toast.show{opacity:1;transform:none}
   </style>
 </head><body><main>
   <h1>Nepsis A/B Demo Runner</h1>
   <p>Use your own LLM. Copy the prompts, run them, paste outputs below, then <em>Evaluate</em>.</p>
   <div class="controls">
-    <button id="copy-naked">Copy Naked Prompt</button>
-    <button id="copy-nepsis">Copy Nepsis-Scaffold Prompt</button>
-    <button id="evaluate">Evaluate Pasted Outputs</button>
-    <button id="download-csv">Download Scorecard CSV</button>
-    <a href="/" style="margin-left:auto">← Back</a>
+    <button id="copy-naked" class="btn btn-primary">Copy Naked Prompt</button>
+    <button id="copy-nepsis" class="btn btn-primary">Copy Nepsis-Scaffold Prompt</button>
+    <button id="evaluate" class="btn">Evaluate Pasted Outputs</button>
+    <button id="download-csv" class="btn btn-ghost">Download Scorecard CSV</button>
+    <a href="/" class="back">← Back</a>
   </div>
   <div class="row">
     <div class="card">
@@ -54,4 +82,4 @@
       <tfoot><tr><th>Total Score</th><th id="total-naked">0</th><th id="total-nepsis">0</th><th></th></tr></tfoot>
     </table>
   </div>
-</main><script src="/runner.js"></script></body></html>
+</main><div id="toast" aria-live="polite"></div><script src="/runner.js"></script></body></html>

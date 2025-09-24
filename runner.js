@@ -5,45 +5,113 @@ const CASES = [
   { key: 'hangul', name: 'Hangul Jamo compose',                expect: '가' }, // ᄀ + ᅡ → 가
 ];
 
+const PROMPT_PATHS = {
+  naked: '/prompts/naked.txt',
+  nepsis: '/prompts/scaffold.txt',
+};
+
 // ---- utilities ----
-const firstChar = (s) => (s ?? '').trim().replace(/^```[\s\S]*?```/g,'').trim().at(0) ?? '';
+const firstChar = (s) => (s ?? '').trim().replace(/^```[\s\S]*?```/g, '').trim().at(0) ?? '';
 const cp = (ch) => 'U+' + (ch.codePointAt?.(0) ?? 0).toString(16).toUpperCase();
 
-// ---- load prompts so users can copy them ----
-// These files already exist in your repo:
-async function loadPrompt(path){ const r = await fetch(path); return await r.text(); }
-let prompts = { naked: '', nepsis: '' };
+function flashCopy(btn, ok = true, label = 'Copied!') {
+  const original = btn.textContent;
+  btn.textContent = label;
+  btn.classList.add('pulse');
+  showToast(ok ? 'Copied to clipboard' : 'Copy failed', ok);
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove('pulse');
+  }, 900);
+}
+
+function showToast(msg, ok = true) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.borderColor = ok ? 'rgba(16,185,129,.4)' : 'rgba(239,68,68,.4)';
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+async function copy(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text || '');
+    flashCopy(btn, true);
+  } catch (err) {
+    console.error(err);
+    flashCopy(btn, false, 'Copy failed');
+  }
+}
+
+async function loadPrompt(path) {
+  const res = await fetch(path);
+  if (!res.ok) {
+    throw new Error(`Failed to load ${path}: ${res.status}`);
+  }
+  return await res.text();
+}
+
+const prompts = { naked: null, nepsis: null };
+const promptLoads = {};
+async function ensurePrompt(kind) {
+  if (prompts[kind] != null) return prompts[kind];
+  promptLoads[kind] ??= (async () => {
+    const path = PROMPT_PATHS[kind];
+    if (!path) throw new Error(`Unknown prompt kind: ${kind}`);
+    const text = await loadPrompt(path);
+    prompts[kind] = text;
+    return text;
+  })();
+  return promptLoads[kind];
+}
+
 (async () => {
   try {
-    prompts.naked  = await loadPrompt('/prompts/naked.txt');
-    prompts.nepsis = await loadPrompt('/prompts/scaffold.txt');
-  } catch { /* non-blocking */ }
+    await Promise.all(Object.keys(PROMPT_PATHS).map((kind) => ensurePrompt(kind)));
+  } catch (err) {
+    console.warn('Prompt prefetch failed', err);
+  }
 })();
 
-// ---- copy buttons ----
-const copy = async (text) => navigator.clipboard.writeText(text);
-document.getElementById('copy-naked') .onclick = () => copy(prompts.naked);
-document.getElementById('copy-nepsis').onclick = () => copy(prompts.nepsis);
+const copyButtons = {
+  naked: document.getElementById('copy-naked'),
+  nepsis: document.getElementById('copy-nepsis'),
+};
+
+for (const [kind, button] of Object.entries(copyButtons)) {
+  if (!button) continue;
+  button.addEventListener('click', async (event) => {
+    try {
+      const prompt = await ensurePrompt(kind);
+      await copy(prompt, event.currentTarget);
+    } catch (err) {
+      console.error(err);
+      flashCopy(event.currentTarget, false, 'Copy failed');
+    }
+  });
+}
 
 // ---- evaluation of *pasted* outputs ----
-function evaluateSide(prefix){
+function evaluateSide(prefix) {
   const results = [];
   let score = 0;
 
-  // 3 case checks
-  for (const c of CASES){
+  for (const c of CASES) {
     const val = document.getElementById(`${prefix}-${c.key}`).value;
     const got = firstChar(val);
     const pass = got === c.expect;
     results.push({
-      check: c.name, label: prefix, pass,
-      note: pass ? '' : `got ${got ? `${cp(got)} '${got}'` : '∅'} want ${cp(c.expect)} '${c.expect}'`
+      check: c.name,
+      label: prefix,
+      pass,
+      note: pass ? '' : `got ${got ? `${cp(got)} '${got}'` : '∅'} want ${cp(c.expect)} '${c.expect}'`,
     });
     if (pass) score += 1;
   }
 
-  // replacement char check
-  const allText = CASES.map(c => document.getElementById(`${prefix}-${c.key}`).value).join(' ');
+  const allText = CASES.map((c) => document.getElementById(`${prefix}-${c.key}`).value).join(' ');
   const bad = /\uFFFD/.test(allText);
   results.push({ check: 'No replacement characters', label: prefix, pass: !bad, note: bad ? 'Found U+FFFD' : '' });
   if (!bad) score += 1;
@@ -51,22 +119,24 @@ function evaluateSide(prefix){
   return { checks: results, score };
 }
 
-function renderScores(nakedEval, nepsisEval){
+function renderScores(nakedEval, nepsisEval) {
   const tbody = document.querySelector('#score tbody');
   const totalN = document.getElementById('total-naked');
   const totalS = document.getElementById('total-nepsis');
   tbody.innerHTML = '';
 
   const byName = new Map();
-  for (const c of nakedEval.checks)  byName.set(c.check, { name:c.check, naked:c,  nepsis:null });
-  for (const c of nepsisEval.checks) byName.set(c.check, { ...(byName.get(c.check)||{name:c.check}), nepsis:c });
+  for (const c of nakedEval.checks) byName.set(c.check, { name: c.check, naked: c, nepsis: null });
+  for (const c of nepsisEval.checks) byName.set(c.check, { ...(byName.get(c.check) || { name: c.check }), nepsis: c });
 
   const rows = [];
-  for (const {name, naked, nepsis} of byName.values()){
+  const symbol = (entry) => (entry == null ? '—' : entry.pass ? '✔︎' : '✖︎');
+  const stateClass = (entry) => (entry == null ? '' : entry.pass ? 'ok' : 'bad');
+  for (const { name, naked, nepsis } of byName.values()) {
     rows.push(`<tr>
       <td>${name}</td>
-      <td class="${naked?.pass ? 'ok':'bad'}">${naked ? (naked.pass ? '✔︎':'✖︎') : '—'}</td>
-      <td class="${nepsis?.pass ? 'ok':'bad'}">${nepsis ? (nepsis.pass ? '✔︎':'✖︎') : '—'}</td>
+      <td class="${stateClass(naked)}">${symbol(naked)}</td>
+      <td class="${stateClass(nepsis)}">${symbol(nepsis)}</td>
       <td>${[naked?.note, nepsis?.note].filter(Boolean).join(' / ')}</td>
     </tr>`);
   }
@@ -74,25 +144,38 @@ function renderScores(nakedEval, nepsisEval){
   totalN.textContent = nakedEval.score;
   totalS.textContent = nepsisEval.score;
 
-  // stash for CSV
   window._lastScoreRows = [...nakedEval.checks, ...nepsisEval.checks];
 }
 
-document.getElementById('evaluate').onclick = () => {
-  const eN = evaluateSide('naked');
-  const eS = evaluateSide('nepsis');
-  renderScores(eN, eS);
-};
-
-// ---- CSV download ----
-document.getElementById('download-csv').onclick = () => {
-  const rows = window._lastScoreRows || [];
-  const lines = ['check,label,pass,note', ...rows.map(
-    r => `${JSON.stringify(r.check)},${r.label},${r.pass},${JSON.stringify(r.note||'')}`
-  )];
-  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(blob), download: 'scorecard.csv'
+const evaluateBtn = document.getElementById('evaluate');
+if (evaluateBtn) {
+  evaluateBtn.addEventListener('click', () => {
+    const eN = evaluateSide('naked');
+    const eS = evaluateSide('nepsis');
+    renderScores(eN, eS);
+    showToast('Scores updated');
   });
-  a.click(); URL.revokeObjectURL(a.href);
-};
+}
+
+const downloadBtn = document.getElementById('download-csv');
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', () => {
+    const rows = window._lastScoreRows || [];
+  if (!rows.length) {
+    showToast('Run Evaluate first', false);
+    return;
+  }
+    const lines = ['check,label,pass,note', ...rows.map(
+      (r) => `${JSON.stringify(r.check)},${r.label},${r.pass},${JSON.stringify(r.note || '')}`,
+    )];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: 'scorecard.csv',
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+    pulseButton(downloadBtn);
+    showToast('Scorecard downloaded');
+  });
+}
