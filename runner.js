@@ -402,6 +402,17 @@ const MODEL_PRESETS = ['GPT-5', 'Claude 3.7 Sonnet', 'o3', 'Llama 3.1 405B', 'Ge
 const MODEL_STORAGE_KEY = 'nepsis_active_model_v1';
 const MODEL_CUSTOM_STORAGE_KEY = 'nepsis_custom_model_v1';
 const PROMPT_TYPE_STORAGE_KEY = 'nepsis_prompt_type_v1';
+const DIFF_KEY = 'nepsis_difficulty_v1';
+const DIFF_CONFIG = {
+  standard: {
+    evaluator: { strict: true, structure_required: true, adversarial: false },
+    answer_max_tokens: 256,
+  },
+  hard: {
+    evaluator: { strict: true, structure_required: true, adversarial: true },
+    answer_max_tokens: 128,
+  },
+};
 
 function buildNakedPrompt(llmLabel = '') {
   const clause = llmLabel.toLowerCase().includes('claude')
@@ -666,6 +677,18 @@ function persistSelectionState() {
   }
 }
 
+function loadDifficultyFromStorage() {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = window.localStorage.getItem(DIFF_KEY);
+    if (stored === 'hard' || stored === 'standard') {
+      currentDifficulty = stored;
+    }
+  } catch (err) {
+    console.warn('Failed to load difficulty state', err);
+  }
+}
+
 function updateModelUI() {
   const select = get('modelSelect');
   const badge = get('modelBadge');
@@ -761,6 +784,10 @@ function renderTags(tags = []) {
   }).join(' ');
 }
 
+function getRunCountFor(diff = 'standard') {
+  return runHistory.filter((run) => (run.difficulty || 'standard') === diff).length;
+}
+
 function normalizeLegacyRun(run) {
   if (!run || typeof run !== 'object') return run;
   if (!run.model) {
@@ -772,14 +799,28 @@ function normalizeLegacyRun(run) {
     else if (run.mode === 'baseline') run.prompt_type = 'naked';
     else run.prompt_type = null;
   }
+  if (!Object.prototype.hasOwnProperty.call(run, 'answer_max_tokens')) {
+    const diffCfg = DIFF_CONFIG[run.difficulty || 'standard'];
+    run.answer_max_tokens = diffCfg ? diffCfg.answer_max_tokens : DIFF_CONFIG.standard.answer_max_tokens;
+  }
+  if (!run.evaluator || typeof run.evaluator !== 'object') {
+    const diffCfg = DIFF_CONFIG[run.difficulty || 'standard'];
+    const baseEval = diffCfg ? diffCfg.evaluator : DIFF_CONFIG.standard.evaluator;
+    run.evaluator = { ...baseEval, seed_strategy: SEED_STRATEGY, strict: true, structure_required: true };
+  } else if (!Object.prototype.hasOwnProperty.call(run.evaluator, 'adversarial')) {
+    const diffCfg = DIFF_CONFIG[run.difficulty || 'standard'];
+    run.evaluator = { ...run.evaluator, adversarial: diffCfg ? diffCfg.evaluator.adversarial : false };
+  }
   return run;
 }
 
 let runHistory = loadRuns().map((run) => normalizeLegacyRun(run));
 
 loadSelectionState();
+loadDifficultyFromStorage();
 updateModelUI();
 updatePromptButtons();
+setDifficulty(currentDifficulty, { persist: false, skipSync: true });
 
 async function loadSample(kind) {
   if (!Object.prototype.hasOwnProperty.call(SAMPLE_TEXT, kind)) {
@@ -806,7 +847,8 @@ function ensureCanonicalRun() {
     k: K_CONSISTENCY,
     seeds: [...SEEDS],
     latency_ms: null,
-    evaluator: { strict: true, structure_required: true, seed_strategy: SEED_STRATEGY },
+    evaluator: { ...DIFF_CONFIG.standard.evaluator, seed_strategy: SEED_STRATEGY },
+    answer_max_tokens: DIFF_CONFIG.standard.answer_max_tokens,
     items: canonicalItems,
   };
   runHistory = [canonicalRun, ...runHistory];
@@ -816,6 +858,13 @@ function ensureCanonicalRun() {
 function recordRun(promptType, difficulty, cases, meta = {}) {
   if (!cases || !cases.length) return;
   const ts = Date.now();
+  const diffCfg = DIFF_CONFIG[difficulty] || DIFF_CONFIG.standard;
+  const evaluatorConfig = {
+    ...diffCfg.evaluator,
+    seed_strategy: SEED_STRATEGY,
+    ...(meta.evaluator || {}),
+  };
+  const answerMaxTokens = meta.answer_max_tokens ?? diffCfg.answer_max_tokens;
   const run = {
     run_id: meta.run_id || generateRunId(),
     ts,
@@ -825,7 +874,8 @@ function recordRun(promptType, difficulty, cases, meta = {}) {
     k: meta.k ?? K_CONSISTENCY,
     seeds: meta.seeds ?? [...SEEDS],
     latency_ms: meta.latency ?? null,
-    evaluator: { strict: true, structure_required: true, seed_strategy: SEED_STRATEGY },
+    evaluator: evaluatorConfig,
+    answer_max_tokens: answerMaxTokens,
     items: cases.map((c) => {
       const pass = Boolean(c.pass);
       const reason = c.reason || '';
@@ -847,12 +897,52 @@ function recordRun(promptType, difficulty, cases, meta = {}) {
   saveRuns(runHistory);
   renderMetrics();
   renderRunHistory();
+  updateDifficultyUI();
   window._lastCases = cases;
+}
+
+function updateDifficultyUI() {
+  const std = get('btnDiffStandard');
+  const hard = get('btnDiffHard');
+  if (std) std.classList.toggle('active', currentDifficulty === 'standard');
+  if (hard) hard.classList.toggle('active', currentDifficulty === 'hard');
+  const badge = get('consistencyBadge') || get('consistencyChip');
+  if (badge) {
+    badge.textContent = `Consistency check: k=${K_CONSISTENCY} • seeds ${SEEDS.join(' / ')} • runs ${getRunCountFor(currentDifficulty)}`;
+  }
+  if (typeof document !== 'undefined' && document.body) {
+    document.body.dataset.difficulty = currentDifficulty;
+  }
+}
+
+function setDifficulty(value, opts = {}) {
+  const normalized = value === 'hard' ? 'hard' : 'standard';
+  currentDifficulty = normalized;
+  if (typeof window !== 'undefined' && opts.persist !== false) {
+    try {
+      window.localStorage.setItem(DIFF_KEY, normalized);
+    } catch (err) {
+      console.warn('Failed to persist difficulty state', err);
+    }
+  }
+  updateDifficultyUI();
+  if (!opts.skipSync) syncURL();
+}
+
+function wireDifficulty() {
+  const std = get('btnDiffStandard');
+  const hard = get('btnDiffHard');
+  if (std) {
+    std.addEventListener('click', () => setDifficulty('standard'));
+  }
+  if (hard) {
+    hard.addEventListener('click', () => setDifficulty('hard'));
+  }
+  updateDifficultyUI();
 }
 
 function renderMetrics() {
   const metricsTable = get('metricsTable');
-  const consistencyChip = get('consistencyChip');
   if (!metricsTable) return;
   const body = metricsTable.querySelector('tbody');
   if (!body) return;
@@ -882,21 +972,19 @@ function renderMetrics() {
     .map((bucket) => renderMetricRow(bucket));
 
   body.innerHTML = rows.join('');
-  if (consistencyChip) {
-    consistencyChip.textContent = `Consistency check: k=${K_CONSISTENCY} • seeds ${SEEDS.join(' / ')} • runs ${runHistory.length}`;
-  }
+  updateDifficultyUI();
 }
 
 function renderMetricRow(bucket) {
   const passText = `${bucket.pass || 0} / ${bucket.total || 0}`;
   const passRate = bucket.total ? `${percentage(bucket.pass, bucket.total)}%` : '—';
   return `<tr>
-    <td>${escapeHtml(bucket.model)}</td>
-    <td class="capitalize">${escapeHtml(bucket.prompt)}</td>
-    <td class="capitalize">${escapeHtml(bucket.difficulty)}</td>
-    <td>${bucket.runs || 0}</td>
-    <td>${passRate}</td>
-    <td>${passText}</td>
+    <td data-label="Model">${escapeHtml(bucket.model)}</td>
+    <td class="capitalize" data-label="Prompt">${escapeHtml(bucket.prompt)}</td>
+    <td class="capitalize" data-label="Difficulty">${escapeHtml(bucket.difficulty)}</td>
+    <td data-label="Runs">${bucket.runs || 0}</td>
+    <td data-label="Pass %">${passRate}</td>
+    <td data-label="Passed / Total">${passText}</td>
   </tr>`;
 }
 
@@ -910,23 +998,24 @@ function renderRunHistory() {
     const total = run.items.length;
     const runTags = Array.from(new Set(run.items.flatMap((item) => item.tags || [])));
     return `<tr>
-      <td>${new Date(run.ts).toLocaleString()}</td>
-      <td class="whitespace-nowrap">${escapeHtml(run.model || '—')}</td>
-      <td class="capitalize">${escapeHtml(run.prompt_type || '—')}</td>
-      <td class="capitalize">${escapeHtml(run.difficulty || '')}</td>
-      <td>${passed}</td>
-      <td>${total}</td>
-      <td>${percentage(passed, total)}%</td>
-      <td class="text-xs">${run.run_id.slice(0, 10)}</td>
-      <td>${renderTags(runTags)}</td>
+      <td data-label="Timestamp">${new Date(run.ts).toLocaleString()}</td>
+      <td class="whitespace-nowrap" data-label="Model">${escapeHtml(run.model || '—')}</td>
+      <td class="capitalize" data-label="Prompt">${escapeHtml(run.prompt_type || '—')}</td>
+      <td class="capitalize" data-label="Difficulty">${escapeHtml(run.difficulty || '')}</td>
+      <td data-label="Passed">${passed}</td>
+      <td data-label="Total">${total}</td>
+      <td data-label="Pass %">${percentage(passed, total)}%</td>
+      <td class="text-xs" data-label="Run ID">${run.run_id.slice(0, 10)}</td>
+      <td data-label="Tags">${renderTags(runTags)}</td>
     </tr>`;
   }).join('');
-  body.innerHTML = rows || '<tr><td colspan="9" style="color:var(--muted)">No runs recorded yet.</td></tr>';
+  body.innerHTML = rows || '<tr class="empty-row"><td colspan="9" style="color:var(--muted)">No runs recorded yet.</td></tr>';
 }
 
 ensureCanonicalRun();
 renderMetrics();
 renderRunHistory();
+wireDifficulty();
 
 // ---- prompt copy buttons & selections ----
 const copyNakedBtn = get('btnCopyNaked');
@@ -940,7 +1029,10 @@ const sampleCopyNaked = get('btnCopyNakedSample');
 const sampleInsertNaked = get('btnInsertNakedSample');
 const sampleCopyNepsis = get('btnCopyNepsisSample');
 const sampleInsertNepsis = get('btnInsertNepsisSample');
-const codeEditor = get('solutionCode');
+const codeEditor = get('codeEditor');
+if (codeEditor && /Utf8StreamNormalizer below \(no tests\)/.test(codeEditor.value)) {
+  codeEditor.value = '';
+}
 
 if (modelBadge) {
   modelBadge.textContent = currentModel;
@@ -1013,8 +1105,6 @@ const codePane = get('codePane');
 const outputPane = get('outputPane');
 const tabCode = get('tabCode');
 const tabOutput = get('tabOutput');
-const difficultyToggle = get('difficultyToggle');
-
 function syncURL() {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
@@ -1026,24 +1116,7 @@ function syncURL() {
   window.history.replaceState(null, '', url);
 }
 
-function setDifficulty(value) {
-  if (!value) return;
-  currentDifficulty = value;
-  if (difficultyToggle) {
-    difficultyToggle.querySelectorAll('button').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.difficulty === value);
-    });
-  }
-  syncURL();
-}
 
-if (difficultyToggle) {
-  difficultyToggle.querySelectorAll('button').forEach((btn) => {
-    btn.addEventListener('click', () => setDifficulty(btn.dataset.difficulty));
-  });
-}
-setDifficulty(currentDifficulty);
-syncURL();
 
 function loadURL() {
   if (typeof window === 'undefined') return;
@@ -1064,9 +1137,11 @@ function loadURL() {
     setPromptType(promptParam, { persist: false, skipSync: true });
   }
   if (diffParam === 'hard' || diffParam === 'standard') {
-    currentDifficulty = diffParam;
+    setDifficulty(diffParam, { persist: false, skipSync: true });
+  } else {
+    setDifficulty(currentDifficulty, { persist: false, skipSync: true });
   }
-  setDifficulty(currentDifficulty);
+  syncURL();
 }
 
 window.addEventListener('load', loadURL);
@@ -1228,10 +1303,15 @@ if (evaluateBtn) {
     const eS = scoreBlobStrict(nepsisText, 'nepsis');
 
     renderEvalTables(eN, eS);
+    const diffCfg = DIFF_CONFIG[currentDifficulty] || DIFF_CONFIG.standard;
+    const diffMetaBase = {
+      evaluator: { ...diffCfg.evaluator },
+      answer_max_tokens: diffCfg.answer_max_tokens,
+    };
     const baselineCases = rowsToCases(eN.rows);
-    if (baselineCases.length) recordRun('naked', currentDifficulty, baselineCases, { latency: 0 });
+    if (baselineCases.length) recordRun('naked', currentDifficulty, baselineCases, { ...diffMetaBase, latency: 0 });
     const nepsisCases = rowsToCases(eS.rows);
-    if (nepsisCases.length) recordRun('scaffold', currentDifficulty, nepsisCases, { latency: 0 });
+    if (nepsisCases.length) recordRun('scaffold', currentDifficulty, nepsisCases, { ...diffMetaBase, latency: 0 });
     showToast('Outputs evaluated');
   });
 }
@@ -1261,7 +1341,7 @@ if (downloadBtn) {
       showToast('No runs recorded yet', false);
       return;
     }
-    const header = ['run_id','ts','model','prompt_type','difficulty','prompt_id','pass','reason','k','votes_passed','seeds','latency_ms','seed_strategy'];
+    const header = ['run_id','ts','model','prompt_type','difficulty','prompt_id','pass','reason','k','votes_passed','seeds','latency_ms','seed_strategy','answer_max_tokens'];
     const lines = [header.join(',')];
     for (const run of runHistory) {
       for (const item of run.items) {
@@ -1280,7 +1360,8 @@ if (downloadBtn) {
           votesPassed,
           JSON.stringify(run.seeds ?? SEEDS),
           run.latency_ms ?? '',
-          SEED_STRATEGY,
+          run.evaluator?.seed_strategy ?? SEED_STRATEGY,
+          run.answer_max_tokens ?? '',
         ].join(','));
       }
     }
@@ -1402,7 +1483,15 @@ function renderHarnessResults(payload) {
 const runBtn = get('runBtn');
 if (runBtn) {
   const loader = get('loader');
-  const solutionArea = get('solutionCode');
+  const solutionArea = codeEditor;
+  if (codeEditor) {
+    codeEditor.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        runBtn.click();
+      }
+    });
+  }
   runBtn.addEventListener('click', async () => {
     const code = solutionArea?.value ?? '';
     if (!code.trim()) {
@@ -1436,7 +1525,12 @@ if (runBtn) {
         : [];
       if (normalizedCases.length) {
         const latency = Math.round(performance.now() - start);
-        recordRun(currentPromptType, currentDifficulty, normalizedCases, { latency });
+        const diffCfg = DIFF_CONFIG[currentDifficulty] || DIFF_CONFIG.standard;
+        recordRun(currentPromptType, currentDifficulty, normalizedCases, {
+          latency,
+          evaluator: { ...diffCfg.evaluator },
+          answer_max_tokens: diffCfg.answer_max_tokens,
+        });
       }
       showToast('Tests completed');
     } catch (err) {
