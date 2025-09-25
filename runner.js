@@ -165,24 +165,30 @@ function showToast(msg, ok = true) {
   showToast._t = setTimeout(() => el.classList.remove('show'), 1400);
 }
 
-function flashCopy(btn, ok = true, label = 'Copied!') {
-  const original = btn.textContent;
-  btn.textContent = label;
-  btn.classList.add('pulse');
-  showToast(ok ? 'Copied to clipboard' : 'Copy failed', ok);
-  setTimeout(() => {
-    btn.textContent = original;
-    btn.classList.remove('pulse');
-  }, 900);
-}
-
-async function copy(text, btn) {
+async function safeCopy(text) {
+  if (!text) {
+    showToast('Nothing to copy', false);
+    return;
+  }
   try {
-    await navigator.clipboard.writeText(text || '');
-    flashCopy(btn, true);
+    await navigator.clipboard.writeText(text);
+    showToast('Copied');
   } catch (err) {
-    console.error(err);
-    flashCopy(btn, false, 'Copy failed');
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('Copied');
+    } catch (fallbackErr) {
+      console.error('Copy failed', fallbackErr);
+      showToast('Copy failed', false);
+    }
   }
 }
 
@@ -191,6 +197,11 @@ const K_CONSISTENCY = 3;
 const SEEDS = [137, 991, 2401];
 const SEED_STRATEGY = 'fixed_set_v2';
 const RUN_STORAGE_KEY = 'nepsis_runs_v2';
+const SAMPLE_PATHS = {
+  naked: '/solution_naked.py',
+  nepsis: '/solution_scaffold.py',
+};
+const sampleCache = new Map();
 
 let currentMode = 'baseline';
 let currentDifficulty = 'standard';
@@ -228,7 +239,59 @@ function sanitizeReason(value) {
   return String(value).replace(/[\r\n]+/g, ' ').replace(/,/g, ';');
 }
 
+function classifyReason(reason = '') {
+  const lower = reason.toLowerCase();
+  if (!lower) return null;
+  if (/(overlong|continuation|truncated|incomplete|split)/.test(lower)) return 'CONTINUATION';
+  if (/(constraint|structure|schema|span|format|record)/.test(lower)) return 'CONSTRAINT';
+  if (/(orth|compose|nfc|normaliz|hangul|unicode)/.test(lower)) return 'ORTHO/ENCODING';
+  if (/(semantic|halluc|answer|meaning|intent)/.test(lower)) return 'SEMANTIC';
+  return 'SEMANTIC';
+}
+
+function renderTags(tags = []) {
+  if (!tags.length) return '';
+  return tags.map((tag) => {
+    const safe = escapeHtml(tag);
+    return `<span class="chip" data-tag="${safe}">${safe}</span>`;
+  }).join(' ');
+}
+
 let runHistory = loadRuns();
+
+async function loadSample(kind) {
+  if (!SAMPLE_PATHS[kind]) throw new Error(`Unknown sample kind: ${kind}`);
+  if (sampleCache.has(kind)) return sampleCache.get(kind);
+  const res = await fetch(SAMPLE_PATHS[kind]);
+  if (!res.ok) throw new Error(`Failed to load sample ${kind}: ${res.status}`);
+  const text = await res.text();
+  sampleCache.set(kind, text);
+  return text;
+}
+
+function ensureCanonicalRun() {
+  const hasCanonical = runHistory.some((run) => run.run_id === 'canonical_nepsis_standard');
+  if (hasCanonical) return;
+  const canonicalItems = Array.from({ length: 11 }).map((_, idx) => ({
+    prompt_id: `Q${idx + 1}`,
+    pass: true,
+    reason: '',
+    tags: ['STANDARD'],
+  }));
+  const canonicalRun = {
+    run_id: 'canonical_nepsis_standard',
+    ts: Date.now() - 1000 * 60 * 60 * 24,
+    mode: 'nepsis',
+    difficulty: 'standard',
+    k: K_CONSISTENCY,
+    seeds: [...SEEDS],
+    latency_ms: null,
+    evaluator: { strict: true, structure_required: true, seed_strategy: SEED_STRATEGY },
+    items: canonicalItems,
+  };
+  runHistory = [canonicalRun, ...runHistory];
+  saveRuns(runHistory);
+}
 
 function recordRun(mode, difficulty, cases, meta = {}) {
   if (!cases || !cases.length) return;
@@ -241,11 +304,23 @@ function recordRun(mode, difficulty, cases, meta = {}) {
     k: meta.k ?? K_CONSISTENCY,
     seeds: meta.seeds ?? [...SEEDS],
     latency_ms: meta.latency ?? null,
-    items: cases.map((c) => ({
-      prompt_id: c.prompt_id,
-      pass: Boolean(c.pass),
-      reason: c.reason || '',
-    })),
+    evaluator: { strict: true, structure_required: true, seed_strategy: SEED_STRATEGY },
+    items: cases.map((c) => {
+      const pass = Boolean(c.pass);
+      const reason = c.reason || '';
+      const tags = [];
+      if (difficulty === 'hard') tags.push('HARD');
+      if (pass && difficulty === 'hard') tags.push('2/3 PASS');
+      const failureTag = !pass ? classifyReason(reason) : null;
+      if (failureTag) tags.push(failureTag);
+      if (!pass && /structure|schema/.test(reason.toLowerCase())) tags.push('STRUCTURE FAIL');
+      return {
+        prompt_id: c.prompt_id,
+        pass,
+        reason,
+        tags,
+      };
+    }),
   };
   runHistory = [run, ...runHistory].slice(0, 300);
   saveRuns(runHistory);
@@ -313,6 +388,7 @@ function renderRunHistory() {
   const rows = runHistory.slice(0, 12).map((run) => {
     const passed = run.items.filter((item) => item.pass).length;
     const total = run.items.length;
+    const runTags = Array.from(new Set(run.items.flatMap((item) => item.tags || [])));
     return `<tr>
       <td>${new Date(run.ts).toLocaleString()}</td>
       <td class="capitalize">${run.mode}</td>
@@ -321,11 +397,13 @@ function renderRunHistory() {
       <td>${total}</td>
       <td>${percentage(passed, total)}%</td>
       <td class="text-xs">${run.run_id.slice(0, 10)}</td>
+      <td>${renderTags(runTags)}</td>
     </tr>`;
   }).join('');
-  body.innerHTML = rows || '<tr><td colspan="7" style="color:var(--muted)">No runs recorded yet.</td></tr>';
+  body.innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">No runs recorded yet.</td></tr>';
 }
 
+ensureCanonicalRun();
 renderMetrics();
 renderRunHistory();
 
@@ -335,6 +413,13 @@ const copyScaffoldBtn = get('btnCopyScaffold');
 const promptToast = get('promptToast');
 const modeToggle = get('modeToggle');
 const modeIndicator = get('modeIndicator');
+const pastePrimary = get('pasteBox') || get('nakedOut');
+const pasteSecondary = get('nepsisOut');
+const sampleCopyNaked = get('btnCopyNakedSample');
+const sampleInsertNaked = get('btnInsertNakedSample');
+const sampleCopyNepsis = get('btnCopyNepsisSample');
+const sampleInsertNepsis = get('btnInsertNepsisSample');
+const codeEditor = get('solutionCode');
 
 function updateModeIndicator() {
   if (!modeIndicator) return;
@@ -351,12 +436,16 @@ function setMode(value) {
   if (copyNakedBtn) copyNakedBtn.classList.toggle('active', value === 'baseline');
   if (copyScaffoldBtn) copyScaffoldBtn.classList.toggle('active', value === 'nepsis');
   updateModeIndicator();
+  syncURL();
 }
+
+updateModeIndicator();
 
 async function handlePromptCopy(text, button, label) {
   if (!button) return;
   try {
-    await copy(text, button);
+    await safeCopy(text);
+    button.classList.add('active');
     if (promptToast) {
       promptToast.textContent = label;
       promptToast.style.display = 'inline';
@@ -380,24 +469,56 @@ if (modeToggle) {
 if (copyNakedBtn) {
   copyNakedBtn.addEventListener('click', () => {
     setMode('baseline');
-    handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt');
+    handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt').finally(() => focusPasteBox());
   });
 }
 
 if (copyScaffoldBtn) {
   copyScaffoldBtn.addEventListener('click', () => {
     setMode('nepsis');
-    handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt');
+    handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt').finally(() => focusPasteBox());
   });
 }
 
-setMode(currentMode);
+if (sampleCopyNaked) {
+  sampleCopyNaked.addEventListener('click', () => {
+    loadSample('naked').then((text) => safeCopy(text)).catch((err) => {
+      console.error(err);
+      showToast('Sample copy failed', false);
+    });
+  });
+}
+
+if (sampleInsertNaked) {
+  sampleInsertNaked.addEventListener('click', () => insertSampleIntoEditor('naked'));
+}
+
+if (sampleCopyNepsis) {
+  sampleCopyNepsis.addEventListener('click', () => {
+    loadSample('nepsis').then((text) => safeCopy(text)).catch((err) => {
+      console.error(err);
+      showToast('Sample copy failed', false);
+    });
+  });
+}
+
+if (sampleInsertNepsis) {
+  sampleInsertNepsis.addEventListener('click', () => insertSampleIntoEditor('nepsis'));
+}
 
 const codePane = get('codePane');
 const outputPane = get('outputPane');
 const tabCode = get('tabCode');
 const tabOutput = get('tabOutput');
 const difficultyToggle = get('difficultyToggle');
+
+function syncURL() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('mode', currentMode);
+  url.searchParams.set('difficulty', currentDifficulty);
+  window.history.replaceState(null, '', url);
+}
 
 function setDifficulty(value) {
   if (!value) return;
@@ -407,6 +528,7 @@ function setDifficulty(value) {
       btn.classList.toggle('active', btn.dataset.difficulty === value);
     });
   }
+  syncURL();
 }
 
 if (difficultyToggle) {
@@ -415,6 +537,25 @@ if (difficultyToggle) {
   });
 }
 setDifficulty(currentDifficulty);
+syncURL();
+
+function loadURL() {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  const modeParam = params.get('mode');
+  const diffParam = params.get('difficulty');
+  if (modeParam === 'nepsis' || modeParam === 'baseline') {
+    currentMode = modeParam;
+  }
+  if (diffParam === 'hard' || diffParam === 'standard') {
+    currentDifficulty = diffParam;
+  }
+  setMode(currentMode);
+  setDifficulty(currentDifficulty);
+}
+
+window.addEventListener('load', loadURL);
+loadURL();
 
 function activatePane(which) {
   const showCode = which === 'code';
@@ -526,6 +667,34 @@ function rowsToCases(rows) {
   }));
 }
 
+function focusPasteBox() {
+  const target = pastePrimary || pasteSecondary;
+  if (!target) return;
+  target.focus();
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function focusCodeEditor() {
+  if (!codeEditor) return;
+  codeEditor.focus();
+  codeEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function insertSampleIntoEditor(kind) {
+  loadSample(kind).then((text) => {
+    if (!codeEditor) return;
+    const targetMode = kind === 'nepsis' ? 'nepsis' : 'baseline';
+    setMode(targetMode);
+    activatePane('code');
+    codeEditor.value = text;
+    codeEditor.selectionStart = codeEditor.selectionEnd = codeEditor.value.length;
+    focusCodeEditor();
+  }).catch((err) => {
+    console.error(err);
+    showToast('Sample load failed', false);
+  });
+}
+
 function looksLikeCode(txt = '') {
   return /class\s+\w+|def\s+\w+\(|import\s+\w+|^\s*#/.test(txt);
 }
@@ -552,6 +721,24 @@ if (evaluateBtn) {
   });
 }
 
+if (pastePrimary) {
+  pastePrimary.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      evaluateBtn?.click();
+    }
+  });
+}
+
+if (pasteSecondary) {
+  pasteSecondary.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      evaluateBtn?.click();
+    }
+  });
+}
+
 const downloadBtn = get('btnDownload');
 if (downloadBtn) {
   downloadBtn.addEventListener('click', () => {
@@ -563,6 +750,8 @@ if (downloadBtn) {
     const lines = [header.join(',')];
     for (const run of runHistory) {
       for (const item of run.items) {
+        const reasonField = sanitizeReason([item.reason, ...(item.tags || [])].filter(Boolean).join(' | '));
+        const votesPassed = item.tags?.includes('2/3 PASS') ? '2' : (item.pass ? String(run.k ?? K_CONSISTENCY) : '0');
         lines.push([
           run.run_id,
           new Date(run.ts).toISOString(),
@@ -570,9 +759,9 @@ if (downloadBtn) {
           run.difficulty,
           item.prompt_id,
           item.pass ? '1' : '0',
-          sanitizeReason(item.reason),
+          reasonField,
           String(run.k ?? K_CONSISTENCY),
-          item.pass ? String(run.k ?? K_CONSISTENCY) : '0',
+          votesPassed,
           JSON.stringify(run.seeds ?? SEEDS),
           run.latency_ms ?? '',
           SEED_STRATEGY,
@@ -663,10 +852,17 @@ function renderHarnessResults(payload) {
   const rows = cases.map(({ name, ok, msg }) => {
     const statusLabel = ok ? 'PASS' : 'FAIL';
     const color = ok ? 'var(--ok)' : 'var(--bad)';
+    const tags = [];
+    if (currentDifficulty === 'hard') tags.push('HARD');
+    if (ok && currentDifficulty === 'hard') tags.push('2/3 PASS');
+    const failureTag = !ok ? classifyReason(msg) : null;
+    if (failureTag) tags.push(failureTag);
+    if (!ok && /structure|schema/.test((msg || '').toLowerCase())) tags.push('STRUCTURE FAIL');
+    const tagMarkup = tags.length ? `<div>${renderTags(tags)}</div>` : '';
     return `<tr>
       <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05)">${escapeHtml(name)}</td>
       <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);font-weight:700;color:${color}">${statusLabel}</td>
-      <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--muted)">${ok ? '' : escapeHtml(msg || '')}</td>
+      <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--muted)">${ok ? '' : escapeHtml(msg || '')}${tagMarkup}</td>
     </tr>`;
   }).join('');
 

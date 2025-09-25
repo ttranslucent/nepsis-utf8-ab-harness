@@ -35,14 +35,23 @@
   .cta-button:disabled{opacity:.6;cursor:not-allowed}
   .toggle-group{display:inline-flex;border:1px solid var(--line);border-radius:.75rem;overflow:hidden}
   .toggle-group button{background:transparent;color:var(--ink);padding:.45rem .9rem;border:0;cursor:pointer;font-weight:600;transition:background .2s,color .2s}
-  .toggle-group button.active{background:rgba(103,232,249,.25);color:var(--ink)}
+  .toggle-group button.active{outline:2px solid var(--accent);box-shadow:0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent);font-weight:600;background:rgba(103,232,249,.18)}
   .toggle-label{font-size:.85rem;color:var(--muted);margin-right:.5rem}
-  .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .6rem;border:1px solid rgba(103,232,249,.35);border-radius:999px;font-size:.75rem;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem;border:1px solid var(--muted);border-radius:999px;font-size:.75rem;color:var(--muted)}
   .metrics-table{width:100%;border-collapse:collapse}
   .metrics-table th,.metrics-table td{border-bottom:1px solid var(--line);padding:.55rem;text-align:left}
   .code-block{background:#0b1220;border:1px solid var(--line);border-radius:.7rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
-  .toolbar{display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0;align-items:center}
+  .toolbar{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0;padding:.6rem .9rem;background:rgba(11,18,32,.92);backdrop-filter:blur(12px);border:1px solid rgba(103,232,249,.18);border-radius:.85rem;align-items:center}
+  .samples{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
+  .samples-label{font-size:.85rem;color:var(--muted);margin-right:.25rem}
+  .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem;border:1px solid var(--muted);border-radius:999px;font-size:.75rem;color:var(--muted);cursor:pointer;transition:background .2s,color .2s}
+  .chip-naked{border-color:#b45309;color:#b45309}
+  .chip-naked-alt{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+  .chip-nepsis{border-color:#2563eb;color:#2563eb}
+  .chip-nepsis-alt{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
   textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  textarea::placeholder{opacity:.45;color:var(--muted)}
+  textarea:focus::placeholder{opacity:.2}
   label{display:block;color:var(--muted);font-size:.9rem;margin:.25rem 0 .35rem}
   .card label:first-of-type{margin-top:0}
   table{width:100%;border-collapse:collapse;color:var(--ink)}
@@ -76,6 +85,21 @@
     <p class="cta-text">
       Copy a prompt or paste your class below, then click <b>Run Tests</b> or evaluate saved outputs.
     </p>
+    <details style="margin:0 0 1rem 0;color:var(--muted);font-size:.85rem">
+      <summary style="cursor:pointer;color:var(--accent)">How to use (quick)</summary>
+      <ul style="margin:.6rem 0 0 1.1rem;padding:0;list-style:disc">
+        <li>Copy Naked or Scaffold Lite, paste into your LLM, and grab the class.</li>
+        <li>Paste code in the editor, or paste model outputs in the output tab.</li>
+        <li>Press <kbd>⌘/Ctrl</kbd> + <kbd>Enter</kbd> to evaluate instantly.</li>
+      </ul>
+    </details>
+    <div class="samples">
+      <span class="samples-label">Samples:</span>
+      <button id="btnCopyNakedSample" class="chip chip-naked" type="button">Copy Naked (8/11)</button>
+      <button id="btnInsertNakedSample" class="chip chip-naked-alt" type="button">Insert → Code Editor</button>
+      <button id="btnCopyNepsisSample" class="chip chip-nepsis" type="button">Copy Nepsis Lite (11/11)</button>
+      <button id="btnInsertNepsisSample" class="chip chip-nepsis-alt" type="button">Insert → Code Editor</button>
+    </div>
     <div class="toolbar" style="gap:1rem;margin:0 0 1.2rem 0">
       <span class="toggle-label">Difficulty</span>
       <div class="toggle-group" id="difficultyToggle">
@@ -121,14 +145,14 @@ class Utf8StreamNormalizer:
         We probe for: <code>é</code>, <code>é</code>, <code>한</code> and reject any <code>�</code>.
       </p>
       <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr">
-        <div>
+      <div>
           <div style="color:var(--muted);margin-bottom:6px">Naked Output</div>
-          <textarea id="nakedOut" spellcheck="false" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
-        </div>
-        <div>
+          <textarea id="nakedOut" spellcheck="false" placeholder="Paste Naked output here, then press ⌘/Ctrl+Enter…" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
+      </div>
+      <div>
           <div style="color:var(--muted);margin-bottom:6px">Nepsis-Scaffold Output</div>
-          <textarea id="nepsisOut" spellcheck="false" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
-        </div>
+          <textarea id="nepsisOut" spellcheck="false" placeholder="Paste Nepsis Lite output here…" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
+      </div>
       </div>
       <div id="evalTables" style="margin-top:12px"></div>
     </div>
@@ -136,6 +160,7 @@ class Utf8StreamNormalizer:
 
   <section id="metricsCard" class="card metrics-card">
     <h3 style="margin-top:0">Metrics Summary <span class="chip">k=3 consistency</span></h3>
+    <p style="margin:0 0 .75rem;color:var(--muted);font-size:.85rem">Standard: Canonical first run 11/11. Variability is normal; Hard Mode is adversarial and enforces strict span/structure checks.</p>
     <table id="metricsTable" class="metrics-table">
       <thead>
         <tr><th>Mode</th><th>Difficulty</th><th>Runs</th><th>Pass %</th><th>Passed / Total</th><th>Δ vs Baseline</th></tr>
@@ -148,7 +173,7 @@ class Utf8StreamNormalizer:
     <h3 style="margin-top:0">Recent Runs</h3>
     <table id="runsTable" class="metrics-table">
       <thead>
-        <tr><th>Timestamp</th><th>Mode</th><th>Difficulty</th><th>Passed</th><th>Total</th><th>Pass %</th><th>Run ID</th></tr>
+        <tr><th>Timestamp</th><th>Mode</th><th>Difficulty</th><th>Passed</th><th>Total</th><th>Pass %</th><th>Run ID</th><th>Tags</th></tr>
       </thead>
       <tbody></tbody>
     </table>
