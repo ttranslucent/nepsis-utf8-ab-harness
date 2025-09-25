@@ -1157,6 +1157,7 @@ function activatePane(which) {
   if (tabOutput) {
     tabOutput.classList.toggle('active', !showCode);
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 activatePane('code');
@@ -1267,7 +1268,6 @@ function focusPasteBox() {
 function focusCodeEditor() {
   if (!codeEditor) return;
   codeEditor.focus();
-  codeEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function insertSampleIntoEditor(kind) {
@@ -1279,6 +1279,7 @@ function insertSampleIntoEditor(kind) {
     codeEditor.value = text;
     codeEditor.selectionStart = codeEditor.selectionEnd = codeEditor.value.length;
     focusCodeEditor();
+    codeEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }).catch((err) => {
     console.error(err);
     showToast('Sample load failed', false);
