@@ -28,12 +28,18 @@
   .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
   .card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:1rem}
   .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin:1rem 0}
-  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);padding:.6rem 1rem;border-radius:.8rem;cursor:pointer;transition:transform .05s ease,border-color .2s}
-  .btn:hover{border-color:rgba(255,255,255,.25)}
-  .btn:active{transform:translateY(1px)}
-  .btn-primary{border-color:transparent;background:linear-gradient(90deg,rgba(103,232,249,.20),rgba(192,132,252,.20));box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
-  .btn-ghost{background:transparent}
-  .btn.is-armed{outline:2px solid rgba(103,232,249,.35)}
+    .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);padding:.6rem 1rem;border-radius:.8rem;cursor:pointer;transition:transform .05s ease,border-color .2s}
+    .btn:hover{border-color:rgba(255,255,255,.25)}
+    .btn:active{transform:translateY(1px)}
+    .btn-primary{border-color:transparent;background:linear-gradient(90deg,rgba(103,232,249,.20),rgba(192,132,252,.20));box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
+    .btn-ghost{background:transparent}
+    .btn.is-armed{outline:2px solid rgba(103,232,249,.35)}
+    .cta-section{margin-top:3rem;padding:1.5rem;border:1px solid var(--line);border-radius:1rem;background:var(--card)}
+    .cta-title{margin:0 0 .5rem;font-size:1.5rem}
+    .cta-text{margin:0 0 1rem;color:var(--muted)}
+    .cta-button{appearance:none;border:0;border-radius:.8rem;padding:.65rem 1.2rem;background:linear-gradient(90deg,rgba(103,232,249,.35),rgba(192,132,252,.35));color:var(--ink);cursor:pointer;font-weight:600;transition:transform .05s ease,opacity .2s}
+    .cta-button:disabled{opacity:.6;cursor:not-allowed}
+    .code-block{background:#0b1220;border:1px solid var(--line);border-radius:.7rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
   textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   label{display:block;color:var(--muted);font-size:.9rem;margin:.25rem 0 .35rem}
   .card label:first-of-type{margin-top:0}
@@ -55,43 +61,87 @@
     <button id="download-csv" class="btn btn-ghost">Download Scorecard CSV</button>
     <a href="/" class="back">← Back</a>
   </div>
-  <div class="row">
-    <div class="card">
-      <h3>Naked Output (paste your model’s output)</h3>
-      <textarea id="naked-all" rows="10" placeholder="Paste the full OUTPUT from your LLM using the naked prompt (not the code)…"></textarea>
+  <!-- ===== A/B Runner & Evaluator ===== -->
+  <section id="runner" class="cta-section" style="margin-top:60px">
+    <h2 class="cta-title">Try It Yourself — No Install</h2>
+    <p class="cta-text">
+      Pick your model + mode, copy a prompt, or paste your class below and click <b>Run Tests</b>.
+    </p>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0">
+      <label>LLM:
+        <select id="llmSel" style="padding:8px;border-radius:8px">
+          <option>Claude</option>
+          <option>ChatGPT / GPT-4/5</option>
+          <option>Other</option>
+        </select>
+      </label>
+
+      <label>Mode:
+        <select id="modeSel" style="padding:8px;border-radius:8px">
+          <option value="naked">Naked (baseline)</option>
+          <option value="scaffold">Nepsis-Scaffold (NDA)</option>
+        </select>
+      </label>
+
+      <button id="copyPrompt" class="cta-button" type="button">Copy Prompt →</button>
+      <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
     </div>
 
-    <div class="card">
-      <h3>Nepsis-Scaffold Output (paste your model’s output)</h3>
-      <textarea id="nepsis-all" rows="10" placeholder="Paste the full OUTPUT from your LLM using the scaffold prompt (not the code)…"></textarea>
+    <div style="display:flex;gap:10px;margin:10px 0">
+      <button id="tabCode" class="cta-button" type="button">I have code</button>
+      <button id="tabOutput" class="cta-button" type="button" style="background:transparent;border:1px solid var(--line);">I only have output</button>
     </div>
-  </div>
-  <small style="color:var(--muted)">Tip: Pasting the model’s raw output is fine. We look for the expected characters anywhere in the text and flag replacement characters (�).</small>
-  <small style="color:var(--muted)">
-    Evaluator expects the first three printable characters in each paste to be:
-    <code>é</code>, <code>é</code>, <code>가</code>. It fails if a decomposed sequence
-    (<code>e◌́</code>) appears before composed <code>é</code>, and if any replacement char (�) is present.
-  </small>
-  <div class="card" style="margin:1rem 0">
-    <strong>If your model returned code:</strong>
-    <ol style="margin:.5rem 0 0 1.25rem">
-      <li>Click <em>Copy Python Harness</em> below.</li>
-      <li>Paste your model’s code at the top of a new <code>runner.py</code> file, then paste the harness under it.</li>
-      <li>Run <code>python3 runner.py</code> and paste the printed characters into the boxes above.</li>
-    </ol>
-    <div class="controls" style="margin-top:.5rem">
-      <button id="copy-harness" class="btn btn-ghost">Copy Python Harness</button>
+
+    <div id="codePane">
+      <textarea id="solutionCode" spellcheck="false"
+        style="width:100%;min-height:260px;border-radius:12px;padding:14px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+# Paste ONLY the class Utf8StreamNormalizer below (no tests). Example stub:
+import unicodedata
+class Utf8StreamNormalizer:
+    def __init__(self):
+        self.errors = []
+    def push(self, chunk: bytes) -> str:
+        return ""
+    def finish(self) -> str:
+        return ""
+      </textarea>
+
+      <div style="margin:14px 0;display:flex;gap:12px;flex-wrap:wrap">
+        <button id="runBtn" class="cta-button">Run Tests →</button>
+        <span id="loader" style="display:none;color:var(--muted)">Loading Python…</span>
+      </div>
+
+      <div id="resultsWrap" style="margin-top:12px">
+        <div id="headline" style="font-weight:700;margin-bottom:8px"></div>
+        <div id="tableOutput"></div>
+        <pre id="rawOutput" class="code-block" style="display:none;white-space:pre-wrap"></pre>
+      </div>
     </div>
-  </div>
-  <div class="card" style="margin-top:1rem">
-    <h3>Evaluator</h3>
-    <table id="score"><thead><tr><th>Check</th><th>Naked</th><th>Nepsis</th><th>Notes</th></tr></thead>
-      <tbody></tbody>
-      <tfoot><tr><th>Total Score</th><th id="total-naked">0</th><th id="total-nepsis">0</th><th></th></tr></tfoot>
-    </table>
-  </div>
+
+    <div id="outputPane" style="display:none;margin-top:10px">
+      <p class="cta-text" style="margin-bottom:6px">
+        Paste the <b>printed characters</b> (not code) from your model run.
+        We probe for: <code>é</code>, <code>é</code>, <code>한</code> and reject any <code>�</code>.
+      </p>
+      <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr">
+        <div>
+          <div style="color:var(--muted);margin-bottom:6px">Naked Output</div>
+          <textarea id="nakedOut" spellcheck="false" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
+        </div>
+        <div>
+          <div style="color:var(--muted);margin-bottom:6px">Nepsis-Scaffold Output</div>
+          <textarea id="nepsisOut" spellcheck="false" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <button id="evaluate" class="cta-button" type="button">Evaluate Outputs →</button>
+      </div>
+      <div id="evalTables" style="margin-top:12px"></div>
+    </div>
+  </section>
   <footer style="margin-top:2rem;color:var(--muted);font-size:0.9rem">
     This is MVP Nepsis in scaffold form. This work is proprietary. For discussion or consultation, please email:
     <a href="mailto:ttranslucent@gmail.com" style="color:var(--accent);text-decoration:none">ttranslucent@gmail.com</a>.
   </footer>
-</main><div id="toast" aria-live="polite"></div><script src="/runner.js"></script></body></html>
+</main><div id="toast" aria-live="polite"></div><script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script><script src="/runner.js"></script></body></html>
