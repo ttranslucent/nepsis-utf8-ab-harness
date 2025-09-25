@@ -329,10 +329,29 @@ function renderRunHistory() {
 renderMetrics();
 renderRunHistory();
 
-// ---- prompt copy buttons ----
+// ---- prompt copy buttons & mode toggle ----
 const copyNakedBtn = get('btnCopyNaked');
 const copyScaffoldBtn = get('btnCopyScaffold');
 const promptToast = get('promptToast');
+const modeToggle = get('modeToggle');
+const modeIndicator = get('modeIndicator');
+
+function updateModeIndicator() {
+  if (!modeIndicator) return;
+  modeIndicator.textContent = currentMode === 'nepsis' ? 'Mode: Nepsis Lite' : 'Mode: Strict Baseline';
+}
+
+function setMode(value) {
+  currentMode = value;
+  if (modeToggle) {
+    modeToggle.querySelectorAll('button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === value);
+    });
+  }
+  if (copyNakedBtn) copyNakedBtn.classList.toggle('active', value === 'baseline');
+  if (copyScaffoldBtn) copyScaffoldBtn.classList.toggle('active', value === 'nepsis');
+  updateModeIndicator();
+}
 
 async function handlePromptCopy(text, button, label) {
   if (!button) return;
@@ -349,25 +368,30 @@ async function handlePromptCopy(text, button, label) {
   }
 }
 
+if (modeToggle) {
+  modeToggle.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.mode;
+      if (value) setMode(value);
+    });
+  });
+}
+
 if (copyNakedBtn) {
   copyNakedBtn.addEventListener('click', () => {
-    currentMode = 'baseline';
-    copyNakedBtn.classList.add('active');
-    if (copyScaffoldBtn) copyScaffoldBtn.classList.remove('active');
+    setMode('baseline');
     handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt');
   });
 }
 
 if (copyScaffoldBtn) {
   copyScaffoldBtn.addEventListener('click', () => {
-    currentMode = 'nepsis';
-    copyScaffoldBtn.classList.add('active');
-    if (copyNakedBtn) copyNakedBtn.classList.remove('active');
+    setMode('nepsis');
     handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt');
   });
 }
 
-if (copyNakedBtn) copyNakedBtn.classList.add('active');
+setMode(currentMode);
 
 const codePane = get('codePane');
 const outputPane = get('outputPane');

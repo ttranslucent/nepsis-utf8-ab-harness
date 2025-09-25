@@ -57,10 +57,16 @@
   <h1>Nepsis A/B Demo Runner</h1>
   <p>Use your own LLM. Copy the prompts, run them, paste outputs below, then <em>Evaluate</em>.</p>
   <div class="toolbar">
-    <button id="btnCopyNaked" class="cta-button" type="button">Copy Naked Prompt</button>
+    <span class="toggle-label">Mode</span>
+    <div class="toggle-group" id="modeToggle">
+      <button type="button" data-mode="baseline" class="active">Strict Baseline</button>
+      <button type="button" data-mode="nepsis">Nepsis Lite</button>
+    </div>
+    <button id="btnCopyNaked" class="cta-button active" type="button">Copy Naked Prompt</button>
     <button id="btnCopyScaffold" class="cta-button" type="button">Copy Nepsis-Scaffold Prompt</button>
     <button id="btnEvaluate" class="cta-button" type="button">Evaluate Pasted Outputs</button>
     <button id="btnDownload" class="cta-button" type="button">Download Scorecard CSV</button>
+    <span id="modeIndicator" class="chip">Mode: Strict Baseline</span>
     <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
     <a href="/" class="back" style="margin-left:auto">← Back</a>
   </div>
