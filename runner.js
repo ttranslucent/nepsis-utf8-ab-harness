@@ -186,7 +186,150 @@ async function copy(text, btn) {
   }
 }
 
-// ---- prompt loading ----
+// ---- shared state & storage ----
+const K_CONSISTENCY = 3;
+const SEEDS = [137, 991, 2401];
+const SEED_STRATEGY = 'fixed_set_v2';
+const RUN_STORAGE_KEY = 'nepsis_runs_v2';
+
+let currentMode = 'baseline';
+let currentDifficulty = 'standard';
+
+function loadRuns() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(RUN_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('Failed to parse stored runs', err);
+    return [];
+  }
+}
+
+function saveRuns(runs) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(runs));
+  } catch (err) {
+    console.warn('Failed to persist runs', err);
+  }
+}
+
+function generateRunId() {
+  return `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+const percentage = (num, den) => (den > 0 ? Math.round((100 * num) / den) : 0);
+
+function sanitizeReason(value) {
+  if (!value) return '';
+  return String(value).replace(/[\r\n]+/g, ' ').replace(/,/g, ';');
+}
+
+let runHistory = loadRuns();
+
+function recordRun(mode, difficulty, cases, meta = {}) {
+  if (!cases || !cases.length) return;
+  const ts = Date.now();
+  const run = {
+    run_id: meta.run_id || generateRunId(),
+    ts,
+    mode,
+    difficulty,
+    k: meta.k ?? K_CONSISTENCY,
+    seeds: meta.seeds ?? [...SEEDS],
+    latency_ms: meta.latency ?? null,
+    items: cases.map((c) => ({
+      prompt_id: c.prompt_id,
+      pass: Boolean(c.pass),
+      reason: c.reason || '',
+    })),
+  };
+  runHistory = [run, ...runHistory].slice(0, 300);
+  saveRuns(runHistory);
+  renderMetrics();
+  renderRunHistory();
+  window._lastCases = cases;
+}
+
+function renderMetrics() {
+  const metricsTable = get('metricsTable');
+  const consistencyChip = get('consistencyChip');
+  if (!metricsTable) return;
+  const body = metricsTable.querySelector('tbody');
+  if (!body) return;
+
+  const buckets = new Map();
+  for (const run of runHistory) {
+    const key = `${run.mode}|${run.difficulty}`;
+    const bucket = buckets.get(key) || { runs: 0, total: 0, pass: 0 };
+    bucket.runs += 1;
+    bucket.total += run.items.length;
+    bucket.pass += run.items.filter((item) => item.pass).length;
+    buckets.set(key, bucket);
+  }
+
+  const rows = [];
+  for (const difficulty of ['standard', 'hard']) {
+    const baselineKey = `baseline|${difficulty}`;
+    const nepsisKey = `nepsis|${difficulty}`;
+    const baseBucket = buckets.get(baselineKey) || { runs: 0, total: 0, pass: 0 };
+    const nepsisBucket = buckets.get(nepsisKey) || { runs: 0, total: 0, pass: 0 };
+    const baseRate = baseBucket.total ? percentage(baseBucket.pass, baseBucket.total) : null;
+    const nepsisRate = nepsisBucket.total ? percentage(nepsisBucket.pass, nepsisBucket.total) : null;
+    const delta = baseRate !== null && nepsisRate !== null ? nepsisRate - baseRate : null;
+
+    rows.push(renderMetricRow('Strict Baseline', difficulty, baseBucket, baseRate, null));
+    rows.push(renderMetricRow('Nepsis Lite', difficulty, nepsisBucket, nepsisRate, delta));
+  }
+
+  body.innerHTML = rows.join('');
+  if (consistencyChip) {
+    consistencyChip.textContent = `Consistency check: k=${K_CONSISTENCY} • seeds ${SEEDS.join(' / ')} • runs ${runHistory.length}`;
+  }
+}
+
+function renderMetricRow(label, difficulty, bucket, rate, delta) {
+  const passText = `${bucket.pass || 0} / ${bucket.total || 0}`;
+  const passRate = rate !== null ? `${rate}%` : '—';
+  const deltaText = delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}%`;
+  return `<tr>
+    <td>${label}</td>
+    <td class="capitalize">${difficulty}</td>
+    <td>${bucket.runs || 0}</td>
+    <td>${passRate}</td>
+    <td>${passText}</td>
+    <td>${deltaText}</td>
+  </tr>`;
+}
+
+function renderRunHistory() {
+  const table = get('runsTable');
+  if (!table) return;
+  const body = table.querySelector('tbody');
+  if (!body) return;
+  const rows = runHistory.slice(0, 12).map((run) => {
+    const passed = run.items.filter((item) => item.pass).length;
+    const total = run.items.length;
+    return `<tr>
+      <td>${new Date(run.ts).toLocaleString()}</td>
+      <td class="capitalize">${run.mode}</td>
+      <td class="capitalize">${run.difficulty}</td>
+      <td>${passed}</td>
+      <td>${total}</td>
+      <td>${percentage(passed, total)}%</td>
+      <td class="text-xs">${run.run_id.slice(0, 10)}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = rows || '<tr><td colspan="7" style="color:var(--muted)">No runs recorded yet.</td></tr>';
+}
+
+renderMetrics();
+renderRunHistory();
+
+// ---- prompt copy buttons ----
 const copyNakedBtn = get('btnCopyNaked');
 const copyScaffoldBtn = get('btnCopyScaffold');
 const promptToast = get('promptToast');
@@ -208,32 +351,56 @@ async function handlePromptCopy(text, button, label) {
 
 if (copyNakedBtn) {
   copyNakedBtn.addEventListener('click', () => {
+    currentMode = 'baseline';
+    copyNakedBtn.classList.add('active');
+    if (copyScaffoldBtn) copyScaffoldBtn.classList.remove('active');
     handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt');
   });
 }
 
 if (copyScaffoldBtn) {
   copyScaffoldBtn.addEventListener('click', () => {
+    currentMode = 'nepsis';
+    copyScaffoldBtn.classList.add('active');
+    if (copyNakedBtn) copyNakedBtn.classList.remove('active');
     handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt');
   });
 }
+
+if (copyNakedBtn) copyNakedBtn.classList.add('active');
 
 const codePane = get('codePane');
 const outputPane = get('outputPane');
 const tabCode = get('tabCode');
 const tabOutput = get('tabOutput');
+const difficultyToggle = get('difficultyToggle');
+
+function setDifficulty(value) {
+  if (!value) return;
+  currentDifficulty = value;
+  if (difficultyToggle) {
+    difficultyToggle.querySelectorAll('button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.difficulty === value);
+    });
+  }
+}
+
+if (difficultyToggle) {
+  difficultyToggle.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => setDifficulty(btn.dataset.difficulty));
+  });
+}
+setDifficulty(currentDifficulty);
 
 function activatePane(which) {
   const showCode = which === 'code';
   if (codePane) codePane.style.display = showCode ? 'block' : 'none';
   if (outputPane) outputPane.style.display = showCode ? 'none' : 'block';
   if (tabCode) {
-    tabCode.classList.toggle('btn-primary', showCode);
-    tabCode.classList.toggle('btn-ghost', !showCode);
+    tabCode.classList.toggle('active', showCode);
   }
   if (tabOutput) {
-    tabOutput.classList.toggle('btn-primary', !showCode);
-    tabOutput.classList.toggle('btn-ghost', showCode);
+    tabOutput.classList.toggle('active', !showCode);
   }
 }
 
@@ -327,6 +494,14 @@ function renderEvalTables(nakedEval, nepsisEval) {
   window._lastScoreRows = [...nakedEval.rows, ...nepsisEval.rows];
 }
 
+function rowsToCases(rows) {
+  return rows.map((row) => ({
+    prompt_id: row.check,
+    pass: row.pass,
+    reason: row.note || '',
+  }));
+}
+
 function looksLikeCode(txt = '') {
   return /class\s+\w+|def\s+\w+\(|import\s+\w+|^\s*#/.test(txt);
 }
@@ -345,6 +520,10 @@ if (evaluateBtn) {
     const eS = scoreBlobStrict(nepsisText, 'nepsis');
 
     renderEvalTables(eN, eS);
+    const baselineCases = rowsToCases(eN.rows);
+    if (baselineCases.length) recordRun('baseline', currentDifficulty, baselineCases, { latency: 0 });
+    const nepsisCases = rowsToCases(eS.rows);
+    if (nepsisCases.length) recordRun('nepsis', currentDifficulty, nepsisCases, { latency: 0 });
     showToast('Outputs evaluated');
   });
 }
@@ -352,14 +531,30 @@ if (evaluateBtn) {
 const downloadBtn = get('btnDownload');
 if (downloadBtn) {
   downloadBtn.addEventListener('click', () => {
-    const rows = window._lastScoreRows || [];
-    if (!rows.length) {
-      showToast('Run Evaluate first', false);
+    if (!runHistory.length) {
+      showToast('No runs recorded yet', false);
       return;
     }
-    const lines = ['check,label,pass,note', ...rows.map(
-      (r) => `${JSON.stringify(r.check)},${r.label},${r.pass},${JSON.stringify(r.note || '')}`,
-    )];
+    const header = ['run_id','ts','mode','difficulty','prompt_id','pass','reason','k','votes_passed','seeds','latency_ms','seed_strategy'];
+    const lines = [header.join(',')];
+    for (const run of runHistory) {
+      for (const item of run.items) {
+        lines.push([
+          run.run_id,
+          new Date(run.ts).toISOString(),
+          run.mode,
+          run.difficulty,
+          item.prompt_id,
+          item.pass ? '1' : '0',
+          sanitizeReason(item.reason),
+          String(run.k ?? K_CONSISTENCY),
+          item.pass ? String(run.k ?? K_CONSISTENCY) : '0',
+          JSON.stringify(run.seeds ?? SEEDS),
+          run.latency_ms ?? '',
+          SEED_STRATEGY,
+        ].join(','));
+      }
+    }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const a = Object.assign(document.createElement('a'), {
       href: URL.createObjectURL(blob),
@@ -484,6 +679,7 @@ if (runBtn) {
       headline.textContent = 'Running tests…';
       headline.style.color = 'var(--muted)';
     }
+    const start = performance.now();
     runBtn.disabled = true;
     runBtn.textContent = 'Running…';
     if (loader) loader.style.display = 'inline';
@@ -499,6 +695,13 @@ if (runBtn) {
       }
       const data = JSON.parse(raw);
       renderHarnessResults(data);
+      const normalizedCases = Array.isArray(data?.cases)
+        ? data.cases.map((c) => ({ prompt_id: c.name, pass: c.ok, reason: c.msg || '' }))
+        : [];
+      if (normalizedCases.length) {
+        const latency = Math.round(performance.now() - start);
+        recordRun(currentMode, currentDifficulty, normalizedCases, { latency });
+      }
       showToast('Tests completed');
     } catch (err) {
       console.error(err);
@@ -506,9 +709,10 @@ if (runBtn) {
         try { pyRuntime.globals.delete('USER_CODE'); } catch (_cleanup) {}
       }
       renderHarnessResults({ fatal: err.message || String(err) });
-      if (rawOutput) {
-        rawOutput.style.display = 'block';
-        rawOutput.textContent = String(err);
+      const outputArea = get('rawOutput');
+      if (outputArea) {
+        outputArea.style.display = 'block';
+        outputArea.textContent = String(err);
       }
       showToast('Python runtime failed', false);
     } finally {
