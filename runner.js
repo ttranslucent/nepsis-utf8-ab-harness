@@ -451,6 +451,7 @@ function renderHarnessResults(payload) {
     </tr>`;
   }).join('');
 
+  window._lastCases = cases;
   tableOutput.innerHTML = `
     <div style="margin:10px 0 6px;color:var(--muted)">Total: ${passed}/${cases.length} passed</div>
     <div style="padding:0;border:1px solid var(--line);border-radius:.8rem;background:rgba(15,27,45,.4);overflow:hidden">
