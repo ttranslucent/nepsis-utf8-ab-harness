@@ -40,16 +40,16 @@ stdout = io.StringIO()
 
 TESTS = [
     ("ascii_split", [b"Hel", b"lo ", b"Wor", b"ld"], "Hello World", []),
-    ("multibyte_split", [b"\xC3", b"\xA9"], "é", []),
-    ("combining_across_chunks", [b"A", b"\xCC\x81"], "Á", []),
-    ("hangul_jamo_cross_chunk", [b"\xE1\x84\x92", b"\xE1\x85\xA1\xE1\x86\xAB"], "한", []),
-    ("overlong_rejected", [b"\xC0\xAF"], "�", [(0, 2)]),
-    ("surrogate_rejected", [b"\xED\xA0\x80"], "�", [(0, 3)]),
-    ("noncharacter_rejected", [b"\xEF\xBF\xBE"], "�", [(0, 3)]),
-    ("lone_continuation_mid_text", [b"a\x80b"], "a�b", [(1, 2)]),
-    ("valid_4byte", [b"\xF0\x9F\x98\x80"], "😀", []),
-    ("truncated_at_end", [b"\xE2\x82"], "�", [(0, 2)]),
-    ("cross_chunk_canonical_reorder", [b"a", b"\xCC\x81", b"\xCC\x80"], "\u00E1\u0300", []),
+    ("multibyte_split", [bytes([0xC3]), bytes([0xA9])], "é", []),
+    ("combining_across_chunks", [b"A", bytes([0xCC, 0x81])], "Á", []),
+    ("hangul_jamo_cross_chunk", [bytes([0xE1, 0x84, 0x92]), bytes([0xE1, 0x85, 0xA1, 0xE1, 0x86, 0xAB])], "한", []),
+    ("overlong_rejected", [bytes([0xC0, 0xAF])], "�", [(0, 2)]),
+    ("surrogate_rejected", [bytes([0xED, 0xA0, 0x80])], "�", [(0, 3)]),
+    ("noncharacter_rejected", [bytes([0xEF, 0xBF, 0xBE])], "�", [(0, 3)]),
+    ("lone_continuation_mid_text", [b"a" + bytes([0x80]) + b"b"], "a�b", [(1, 2)]),
+    ("valid_4byte", [bytes([0xF0, 0x9F, 0x98, 0x80])], "😀", []),
+    ("truncated_at_end", [bytes([0xE2, 0x82])], "�", [(0, 2)]),
+    ("cross_chunk_canonical_reorder", [b"a", bytes([0xCC, 0x81]), bytes([0xCC, 0x80])], "\u00E1\u0300", []),
 ]
 
 with contextlib.redirect_stdout(stdout):
