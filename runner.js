@@ -398,7 +398,7 @@ const SAMPLE_TEXT = {
   nepsis: SAMPLE_NEPSIS_11_11,
 };
 
-const MODEL_PRESETS = ['GPT-5', 'Claude 3.7 Sonnet', 'o3', 'Llama 3.1 405B', 'Gemini 2.0 Pro'];
+const MODEL_PRESETS = ['GPT-5', 'Claude Sonnet 4', 'Claude Opus 4.1', 'o3', 'Llama 3.1 405B', 'Gemini 2.0 Pro', 'Grok-2', 'Grok-1.5'];
 const MODEL_STORAGE_KEY = 'nepsis_active_model_v1';
 const MODEL_CUSTOM_STORAGE_KEY = 'nepsis_custom_model_v1';
 const PROMPT_TYPE_STORAGE_KEY = 'nepsis_prompt_type_v1';
