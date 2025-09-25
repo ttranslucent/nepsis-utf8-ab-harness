@@ -27,19 +27,13 @@
   p{color:var(--muted)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
   .card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:1rem}
-  .controls{display:flex;gap:.75rem;flex-wrap:wrap;margin:1rem 0}
-    .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);padding:.6rem 1rem;border-radius:.8rem;cursor:pointer;transition:transform .05s ease,border-color .2s}
-    .btn:hover{border-color:rgba(255,255,255,.25)}
-    .btn:active{transform:translateY(1px)}
-    .btn-primary{border-color:transparent;background:linear-gradient(90deg,rgba(103,232,249,.20),rgba(192,132,252,.20));box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
-    .btn-ghost{background:transparent}
-    .btn.is-armed{outline:2px solid rgba(103,232,249,.35)}
-    .cta-section{margin-top:3rem;padding:1.5rem;border:1px solid var(--line);border-radius:1rem;background:var(--card)}
-    .cta-title{margin:0 0 .5rem;font-size:1.5rem}
-    .cta-text{margin:0 0 1rem;color:var(--muted)}
-    .cta-button{appearance:none;border:0;border-radius:.8rem;padding:.65rem 1.2rem;background:linear-gradient(90deg,rgba(103,232,249,.35),rgba(192,132,252,.35));color:var(--ink);cursor:pointer;font-weight:600;transition:transform .05s ease,opacity .2s}
-    .cta-button:disabled{opacity:.6;cursor:not-allowed}
-    .code-block{background:#0b1220;border:1px solid var(--line);border-radius:.7rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+  .cta-section{margin-top:3rem;padding:1.5rem;border:1px solid var(--line);border-radius:1rem;background:var(--card)}
+  .cta-title{margin:0 0 .5rem;font-size:1.5rem}
+  .cta-text{margin:0 0 1rem;color:var(--muted)}
+  .cta-button{appearance:none;border:0;border-radius:.8rem;padding:.65rem 1.2rem;background:linear-gradient(90deg,rgba(103,232,249,.35),rgba(192,132,252,.35));color:var(--ink);cursor:pointer;font-weight:600;transition:transform .05s ease,opacity .2s}
+  .cta-button:disabled{opacity:.6;cursor:not-allowed}
+  .code-block{background:#0b1220;border:1px solid var(--line);border-radius:.7rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0;align-items:center}
   textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   label{display:block;color:var(--muted);font-size:.9rem;margin:.25rem 0 .35rem}
   .card label:first-of-type{margin-top:0}
@@ -54,40 +48,20 @@
 </head><body><main>
   <h1>Nepsis A/B Demo Runner</h1>
   <p>Use your own LLM. Copy the prompts, run them, paste outputs below, then <em>Evaluate</em>.</p>
-  <div class="controls">
-    <button id="copy-naked" class="btn btn-primary">Copy Naked Prompt</button>
-    <button id="copy-nepsis" class="btn btn-primary">Copy Nepsis-Scaffold Prompt</button>
-    <button id="evaluate" class="btn">Evaluate Pasted Outputs</button>
-    <button id="download-csv" class="btn btn-ghost">Download Scorecard CSV</button>
-    <a href="/" class="back">← Back</a>
+  <div class="toolbar">
+    <button id="btnCopyNaked" class="cta-button" type="button">Copy Naked Prompt</button>
+    <button id="btnCopyScaffold" class="cta-button" type="button">Copy Nepsis-Scaffold Prompt</button>
+    <button id="btnEvaluate" class="cta-button" type="button">Evaluate Pasted Outputs</button>
+    <button id="btnDownload" class="cta-button" type="button">Download Scorecard CSV</button>
+    <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
+    <a href="/" class="back" style="margin-left:auto">← Back</a>
   </div>
   <!-- ===== A/B Runner & Evaluator ===== -->
   <section id="runner" class="cta-section" style="margin-top:60px">
     <h2 class="cta-title">Try It Yourself — No Install</h2>
     <p class="cta-text">
-      Pick your model + mode, copy a prompt, or paste your class below and click <b>Run Tests</b>.
+      Copy a prompt or paste your class below, then click <b>Run Tests</b> or evaluate saved outputs.
     </p>
-
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0">
-      <label>LLM:
-        <select id="llmSel" style="padding:8px;border-radius:8px">
-          <option>Claude</option>
-          <option>ChatGPT / GPT-4/5</option>
-          <option>Other</option>
-        </select>
-      </label>
-
-      <label>Mode:
-        <select id="modeSel" style="padding:8px;border-radius:8px">
-          <option value="naked">Naked (baseline)</option>
-          <option value="scaffold">Nepsis-Scaffold (NDA)</option>
-        </select>
-      </label>
-
-      <button id="copyPrompt" class="cta-button" type="button">Copy Scaffold (Lite) →</button>
-      <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
-    </div>
-
     <div style="display:flex;gap:10px;margin:10px 0">
       <button id="tabCode" class="cta-button" type="button">I have code</button>
       <button id="tabOutput" class="cta-button" type="button" style="background:transparent;border:1px solid var(--line);">I only have output</button>
@@ -133,9 +107,6 @@ class Utf8StreamNormalizer:
           <div style="color:var(--muted);margin-bottom:6px">Nepsis-Scaffold Output</div>
           <textarea id="nepsisOut" spellcheck="false" style="width:100%;min-height:120px;border-radius:12px;padding:12px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;"></textarea>
         </div>
-      </div>
-      <div style="margin-top:10px">
-        <button id="evaluate" class="cta-button" type="button">Evaluate Outputs →</button>
       </div>
       <div id="evalTables" style="margin-top:12px"></div>
     </div>

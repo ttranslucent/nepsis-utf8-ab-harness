@@ -1,8 +1,3 @@
-const PROMPT_PATHS = {
-  naked: '/prompts/naked.txt',
-  nepsis: '/prompts/scaffold.txt',
-};
-
 // --- strict baseline config ---
 const EXPECT = ['é', 'é', '한'];
 const RE_DECOMP = /e\u0301/g;
@@ -192,79 +187,34 @@ async function copy(text, btn) {
 }
 
 // ---- prompt loading ----
-const prompts = { naked: null, nepsis: null };
-const promptLoads = {};
+const copyNakedBtn = get('btnCopyNaked');
+const copyScaffoldBtn = get('btnCopyScaffold');
+const promptToast = get('promptToast');
 
-async function loadPrompt(path) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
-  return await res.text();
-}
-
-async function ensurePrompt(kind) {
-  if (prompts[kind] != null) return prompts[kind];
-  promptLoads[kind] ??= (async () => {
-    const path = PROMPT_PATHS[kind];
-    if (!path) throw new Error(`Unknown prompt kind: ${kind}`);
-    const text = await loadPrompt(path);
-    prompts[kind] = text;
-    return text;
-  })();
-  return promptLoads[kind];
-}
-
-(async () => {
+async function handlePromptCopy(text, button, label) {
+  if (!button) return;
   try {
-    await Promise.all(Object.keys(PROMPT_PATHS).map((kind) => ensurePrompt(kind)));
-  } catch (err) {
-    console.warn('Prompt prefetch failed', err);
-  }
-})();
-
-const copyButtons = {
-  naked: get('copy-naked'),
-  nepsis: get('copy-nepsis'),
-};
-
-for (const [kind, button] of Object.entries(copyButtons)) {
-  if (!button) continue;
-  button.addEventListener('click', async (event) => {
-    try {
-      button.classList.add('is-armed');
-      const prompt = await ensurePrompt(kind);
-      await copy(prompt, event.currentTarget);
-    } catch (err) {
-      console.error(err);
-      flashCopy(event.currentTarget, false, 'Copy failed');
-    } finally {
-      setTimeout(() => button.classList.remove('is-armed'), 1200);
+    await copy(text, button);
+    if (promptToast) {
+      promptToast.textContent = label;
+      promptToast.style.display = 'inline';
+      setTimeout(() => { promptToast.style.display = 'none'; }, 1600);
     }
+  } catch (err) {
+    console.error(err);
+    showToast('Prompt copy failed', false);
+  }
+}
+
+if (copyNakedBtn) {
+  copyNakedBtn.addEventListener('click', () => {
+    handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt');
   });
 }
 
-const llmSelect = get('llmSel');
-const modeSelect = get('modeSel');
-const copyPromptBtn = get('copyPrompt');
-if (copyPromptBtn) {
-  copyPromptBtn.addEventListener('click', async (event) => {
-    const isScaffold = modeSelect?.value === 'scaffold';
-    try {
-      const promptText = isScaffold
-        ? NEPSIS_SCAFFOLD_PROMPT
-        : buildNakedPrompt(llmSelect?.value || '');
-      await copy(promptText, event.currentTarget);
-      const toast = get('promptToast');
-      if (toast) {
-        const modeLabel = isScaffold ? 'Scaffold (Lite)' : 'Naked';
-        const llmLabel = llmSelect?.value ? ` for ${llmSelect.value}` : '';
-        toast.textContent = `Copied ${modeLabel} prompt${llmLabel}`;
-        toast.style.display = 'inline';
-        setTimeout(() => { toast.style.display = 'none'; }, 1600);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Prompt copy failed', false);
-    }
+if (copyScaffoldBtn) {
+  copyScaffoldBtn.addEventListener('click', () => {
+    handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt');
   });
 }
 
@@ -272,13 +222,6 @@ const codePane = get('codePane');
 const outputPane = get('outputPane');
 const tabCode = get('tabCode');
 const tabOutput = get('tabOutput');
-
-function updatePromptButtonLabel() {
-  if (!copyPromptBtn) return;
-  copyPromptBtn.textContent = (modeSelect?.value === 'scaffold')
-    ? 'Copy Scaffold (Lite) →'
-    : 'Copy Naked Prompt →';
-}
 
 function activatePane(which) {
   const showCode = which === 'code';
@@ -295,12 +238,8 @@ function activatePane(which) {
 }
 
 activatePane('code');
-updatePromptButtonLabel();
 if (tabCode) tabCode.addEventListener('click', () => activatePane('code'));
 if (tabOutput) tabOutput.addEventListener('click', () => activatePane('output'));
-if (modeSelect) modeSelect.addEventListener('change', () => {
-  updatePromptButtonLabel();
-});
 
 // ---- scoring ----
 function scoreBlobStrict(text, label) {
@@ -392,7 +331,7 @@ function looksLikeCode(txt = '') {
   return /class\s+\w+|def\s+\w+\(|import\s+\w+|^\s*#/.test(txt);
 }
 
-const evaluateBtn = get('evaluate');
+const evaluateBtn = get('btnEvaluate');
 if (evaluateBtn) {
   evaluateBtn.addEventListener('click', () => {
     const nakedText = get('nakedOut')?.value ?? '';
@@ -410,7 +349,7 @@ if (evaluateBtn) {
   });
 }
 
-const downloadBtn = get('download-csv');
+const downloadBtn = get('btnDownload');
 if (downloadBtn) {
   downloadBtn.addEventListener('click', () => {
     const rows = window._lastScoreRows || [];
