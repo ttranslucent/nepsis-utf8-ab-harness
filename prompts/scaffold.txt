@@ -1,24 +1,32 @@
-You are implementing a streaming UTF‑8 validator + NFC normalizer under strict constraints.
-Return ONLY the Python code for solution.py that defines Utf8StreamNormalizer.
+Nepsis Scaffold (Lite v0.1)
 
-NON‑NEGOTIABLE CONSTRAINTS (Red Channel):
-1) RFC‑3629 exact UTF‑8: reject overlongs; forbid U+D800–U+DFFF; forbid >U+10FFFF; reject lone continuation/truncated; reject noncharacters in all planes.
-2) On any invalid subsequence, emit exactly one U+FFFD and append (start,end) byte indices in GLOBAL coordinates to self.errors.
-3) Streaming NFC: Do NOT normalize per chunk. Maintain a buffer of the current canonical segment and flush only on seeing a starter (combining class 0) or at finish(). Assume at most 64 consecutive non‑starters.
-4) No cheats: never use bytes.decode(..., errors=...). Implement a UTF‑8 state machine to locate precise error spans.
+Implement solution.py with a single class:
 
-PROCESS (Blue Channel / STILL):
-- Maintain explicit decoder state: (expected, accum, start_index). On violation, advance minimally to avoid double‑counting and record [start,end).
-- Maintain normalization buffer as a list of code points for the current segment; on flush, convert to str and normalize to NFC once.
-- Keep a running byte_offset to map local chunk positions → global positions.
-- Unit‑test invariants (mentally): zero false accepts of overlongs; correct cross‑chunk composition for A + U+0301; exact span for ED A0 80; no double emission of U+FFFD on cascades.
+class Utf8StreamNormalizer:
+    def __init__(self): ...
+    def push(self, chunk: bytes) -> str
+    def finish(self) -> str
+    # After finish(), self.errors is list[tuple[int,int]] of GLOBAL byte ranges for each invalid UTF-8 subsequence
 
-OUTPUT SHAPE:
-- Define class Utf8StreamNormalizer with methods push(self, chunk: bytes) -> str and finish(self) -> str and an attribute self.errors: list[tuple[int,int]].
+NON-NEGOTIABLES (RFC-3629 exact)
+1) Reject: overlong encodings; lone continuation bytes; truncated sequences; 5/6-byte forms; code points > U+10FFFF; UTF-16 surrogates U+D800–U+DFFF; and noncharacters (U+FDD0..U+FDEF or any U+FFFE/U+FFFF in any plane).
+2) On any invalid subsequence emit exactly ONE U+FFFD and append ONE span [start,end) in GLOBAL byte coords to self.errors. Do NOT emit multiple U+FFFD for one invalid subsequence. Truncated tail at finish() → one span covering the remaining bytes.
+3) Streaming semantics: handle code points split across chunks. Keep a small pending-bytes buffer for incomplete sequences.
+4) Normalization: Output MUST be NFC, respecting cross-chunk sequences. Do NOT normalize per chunk. Buffer the current canonical segment and flush only on seeing a starter (combining class 0) or at finish().
+   • Hangul guard: do not flush if the segment tail is Hangul Jamo L or V (it may still compose with upcoming Jamo).
+5) No cheats: NEVER use bytes.decode(..., errors=...) on the stream or chunks. Implement a UTF-8 state machine to get precise spans and overlong checks.
 
-IMPLEMENTATION HINTS (allowed):
-- Use unicodedata.normalize and unicodedata.combining for composition and starter detection.
-- Small ring buffer for pending bytes at chunk edges; small list for code points of current canonical segment.
-- When a non‑starter arrives and no starter previously, continue buffering; when starter arrives, flush previous segment.
+REQUIRED IMPLEMENTATION SHAPE
+- Track: self.byte_offset (global), self.pending (bytes) for split sequences, self.segment (list[str]) for the current canonical run, self.errors (list[tuple[int,int]]).
+- UTF-8 decode: minimal-advance on error (record span, emit U+FFFD, skip the offending lead only unless followers are clearly part of the same invalid subsequence). Lead-byte boundary checks:
+  • 3-byte: E0 ⇒ 0xA0..0xBF; ED ⇒ 0x80..0x9F; otherwise 0x80..0xBF followers.
+  • 4-byte: F0 ⇒ 0x90..0xBF; F4 ⇒ 0x80..0x8F; otherwise 0x80..0xBF followers.
+- Reject noncharacters and surrogates even if structurally well-formed.
+- Compose NFC via unicodedata.normalize('NFC'); starters via unicodedata.combining(ch) == 0.
+- Flushing rule:
+  def _accept(ch):
+      if starter and segment non-empty and last char is NOT Hangul L/V ⇒ flush normalize(segment), clear, then start new.
+      else: append to segment.
+- finish(): if pending exists ⇒ record one span [offset, offset+len(pending)], emit one U+FFFD, clear; then flush normalize(segment).
 
-Return ONLY the code for solution.py, no prose.
+Return ONLY valid Python code for solution.py (no markdown fences, no prose).

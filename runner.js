@@ -29,7 +29,39 @@ Output: ${clause}
 `;
 }
 
-const NDA_PROMPT_MSG = 'Nepsis-Scaffold prompt is proprietary. To evaluate under NDA, email ttranslucent@gmail.com. (You can still paste your class below and run the tests.)';
+const NEPSIS_SCAFFOLD_PROMPT = `Nepsis Scaffold (Lite v0.1)
+
+Implement solution.py with a single class:
+
+class Utf8StreamNormalizer:
+    def __init__(self): ...
+    def push(self, chunk: bytes) -> str
+    def finish(self) -> str
+    # After finish(), self.errors is list[tuple[int,int]] of GLOBAL byte ranges for each invalid UTF-8 subsequence
+
+NON-NEGOTIABLES (RFC-3629 exact)
+1) Reject: overlong encodings; lone continuation bytes; truncated sequences; 5/6-byte forms; code points > U+10FFFF; UTF-16 surrogates U+D800–U+DFFF; and noncharacters (U+FDD0..U+FDEF or any U+FFFE/U+FFFF in any plane).
+2) On any invalid subsequence emit exactly ONE U+FFFD and append ONE span [start,end) in GLOBAL byte coords to self.errors. Do NOT emit multiple U+FFFD for one invalid subsequence. Truncated tail at finish() → one span covering the remaining bytes.
+3) Streaming semantics: handle code points split across chunks. Keep a small pending-bytes buffer for incomplete sequences.
+4) Normalization: Output MUST be NFC, respecting cross-chunk sequences. Do NOT normalize per chunk. Buffer the current canonical segment and flush only on seeing a starter (combining class 0) or at finish().
+   • Hangul guard: do not flush if the segment tail is Hangul Jamo L or V (it may still compose with upcoming Jamo).
+5) No cheats: NEVER use bytes.decode(..., errors=...) on the stream or chunks. Implement a UTF-8 state machine to get precise spans and overlong checks.
+
+REQUIRED IMPLEMENTATION SHAPE
+- Track: self.byte_offset (global), self.pending (bytes) for split sequences, self.segment (list[str]) for the current canonical run, self.errors (list[tuple[int,int]]).
+- UTF-8 decode: minimal-advance on error (record span, emit U+FFFD, skip the offending lead only unless followers are clearly part of the same invalid subsequence). Lead-byte boundary checks:
+  • 3-byte: E0 ⇒ 0xA0..0xBF; ED ⇒ 0x80..0x9F; otherwise 0x80..0xBF followers.
+  • 4-byte: F0 ⇒ 0x90..0xBF; F4 ⇒ 0x80..0x8F; otherwise 0x80..0xBF followers.
+- Reject noncharacters and surrogates even if structurally well-formed.
+- Compose NFC via unicodedata.normalize('NFC'); starters via unicodedata.combining(ch) == 0.
+- Flushing rule:
+  def _accept(ch):
+      if starter and segment non-empty and last char is NOT Hangul L/V ⇒ flush normalize(segment), clear, then start new.
+      else: append to segment.
+- finish(): if pending exists ⇒ record one span [offset, offset+len(pending)], emit one U+FFFD, clear; then flush normalize(segment).
+
+Return ONLY valid Python code for solution.py (no markdown fences, no prose).
+`;
 
 const PY_TEST_SCRIPT = `
 import json, io, contextlib
@@ -210,21 +242,21 @@ for (const [kind, button] of Object.entries(copyButtons)) {
   });
 }
 
+const llmSelect = get('llmSel');
+const modeSelect = get('modeSel');
 const copyPromptBtn = get('copyPrompt');
 if (copyPromptBtn) {
   copyPromptBtn.addEventListener('click', async (event) => {
-    const modeSel = get('modeSel');
-    const llmSel = get('llmSel');
-    const target = (modeSel?.value === 'scaffold') ? 'nepsis' : 'naked';
+    const isScaffold = modeSelect?.value === 'scaffold';
     try {
-      const promptText = target === 'nepsis'
-        ? NDA_PROMPT_MSG
-        : buildNakedPrompt(llmSel?.value || '');
-      await navigator.clipboard.writeText(promptText);
+      const promptText = isScaffold
+        ? NEPSIS_SCAFFOLD_PROMPT
+        : buildNakedPrompt(llmSelect?.value || '');
+      await copy(promptText, event.currentTarget);
       const toast = get('promptToast');
       if (toast) {
-        const modeLabel = target === 'nepsis' ? 'Nepsis-scaffold' : 'Naked';
-        const llmLabel = llmSel?.value ? ` for ${llmSel.value}` : '';
+        const modeLabel = isScaffold ? 'Scaffold (Lite)' : 'Naked';
+        const llmLabel = llmSelect?.value ? ` for ${llmSelect.value}` : '';
         toast.textContent = `Copied ${modeLabel} prompt${llmLabel}`;
         toast.style.display = 'inline';
         setTimeout(() => { toast.style.display = 'none'; }, 1600);
@@ -241,6 +273,13 @@ const outputPane = get('outputPane');
 const tabCode = get('tabCode');
 const tabOutput = get('tabOutput');
 
+function updatePromptButtonLabel() {
+  if (!copyPromptBtn) return;
+  copyPromptBtn.textContent = (modeSelect?.value === 'scaffold')
+    ? 'Copy Scaffold (Lite) →'
+    : 'Copy Naked Prompt →';
+}
+
 function activatePane(which) {
   const showCode = which === 'code';
   if (codePane) codePane.style.display = showCode ? 'block' : 'none';
@@ -256,8 +295,12 @@ function activatePane(which) {
 }
 
 activatePane('code');
+updatePromptButtonLabel();
 if (tabCode) tabCode.addEventListener('click', () => activatePane('code'));
 if (tabOutput) tabOutput.addEventListener('click', () => activatePane('output'));
+if (modeSelect) modeSelect.addEventListener('change', () => {
+  updatePromptButtonLabel();
+});
 
 // ---- scoring ----
 function scoreBlobStrict(text, label) {
