@@ -2,6 +2,407 @@
 const EXPECT = ['é', 'é', '한'];
 const RE_DECOMP = /e\u0301/g;
 
+// --- Sample outputs for quick validate-on-Page-1 ---
+const SAMPLE_NAKED_8_11 = String.raw`import unicodedata
+
+class Utf8StreamNormalizer:
+    def __init__(self):
+        self.errors = []
+        self.byte_offset = 0
+        self.state = 0
+        self.accum = 0
+        self.expected = 0
+        self.start_index = 0
+        self.pending = bytearray()
+        self.segment_buffer = []
+        
+    def push(self, chunk: bytes) -> str:
+        if not chunk:
+            return ""
+        
+        data = self.pending + chunk
+        self.pending.clear()
+        
+        result = []
+        i = 0
+        
+        while i < len(data):
+            if self.state == 0:
+                b = data[i]
+                if b < 0x80:
+                    cp = b
+                    i += 1
+                elif b < 0xC0:
+                    self.errors.append((self.byte_offset + i, self.byte_offset + i + 1))
+                    self._flush_and_emit(result, 0xFFFD)
+                    i += 1
+                elif b < 0xE0:
+                    if b < 0xC2:
+                        self.errors.append((self.byte_offset + i, self.byte_offset + i + 1))
+                        self._flush_and_emit(result, 0xFFFD)
+                        i += 1
+                    else:
+                        if i + 1 >= len(data):
+                            self.pending = data[i:]
+                            break
+                        self.state = 1
+                        self.expected = 1
+                        self.accum = b & 0x1F
+                        self.start_index = self.byte_offset + i
+                        i += 1
+                elif b < 0xF0:
+                    if i + 2 >= len(data):
+                        self.pending = data[i:]
+                        break
+                    self.state = 1
+                    self.expected = 2
+                    self.accum = b & 0x0F
+                    self.start_index = self.byte_offset + i
+                    i += 1
+                elif b < 0xF8:
+                    if b > 0xF4:
+                        self.errors.append((self.byte_offset + i, self.byte_offset + i + 1))
+                        self._flush_and_emit(result, 0xFFFD)
+                        i += 1
+                    else:
+                        if i + 3 >= len(data):
+                            self.pending = data[i:]
+                            break
+                        self.state = 1
+                        self.expected = 3
+                        self.accum = b & 0x07
+                        self.start_index = self.byte_offset + i
+                        i += 1
+                else:
+                    self.errors.append((self.byte_offset + i, self.byte_offset + i + 1))
+                    self._flush_and_emit(result, 0xFFFD)
+                    i += 1
+            else:
+                b = data[i]
+                if b < 0x80 or b >= 0xC0:
+                    end_index = self.byte_offset + i
+                    self.errors.append((self.start_index, end_index))
+                    self._flush_and_emit(result, 0xFFFD)
+                    self.state = 0
+                    self.expected = 0
+                    self.accum = 0
+                else:
+                    self.accum = (self.accum << 6) | (b & 0x3F)
+                    self.expected -= 1
+                    i += 1
+                    
+                    if self.expected == 0:
+                        end_index = self.byte_offset + i
+                        orig_len = end_index - self.start_index
+                        
+                        valid = True
+                        if orig_len == 2:
+                            if self.accum < 0x80:
+                                valid = False
+                        elif orig_len == 3:
+                            first_byte = data[self.start_index - self.byte_offset] if self.start_index >= self.byte_offset else self.pending[0]
+                            if first_byte == 0xE0 and self.accum < 0x800:
+                                valid = False
+                            elif first_byte == 0xED and self.accum >= 0xD800 and self.accum <= 0xDFFF:
+                                valid = False
+                            elif self.accum < 0x800:
+                                valid = False
+                        elif orig_len == 4:
+                            first_byte = data[self.start_index - self.byte_offset] if self.start_index >= self.byte_offset else self.pending[0]
+                            if first_byte == 0xF0 and self.accum < 0x10000:
+                                valid = False
+                            elif first_byte == 0xF4 and self.accum > 0x10FFFF:
+                                valid = False
+                            elif self.accum < 0x10000:
+                                valid = False
+                            elif self.accum > 0x10FFFF:
+                                valid = False
+                        
+                        if self.accum >= 0xD800 and self.accum <= 0xDFFF:
+                            valid = False
+                        
+                        if (self.accum & 0xFFFE) == 0xFFFE:
+                            valid = False
+                        elif self.accum >= 0xFDD0 and self.accum <= 0xFDEF:
+                            valid = False
+                        
+                        if valid:
+                            cp = self.accum
+                        else:
+                            self.errors.append((self.start_index, end_index))
+                            self._flush_and_emit(result, 0xFFFD)
+                            self.state = 0
+                            self.accum = 0
+                            continue
+                        
+                        self.state = 0
+                        self.accum = 0
+            
+            if self.state == 0 and 'cp' in locals():
+                self._process_codepoint(result, cp)
+                del cp
+        
+        self.byte_offset += len(chunk)
+        return ''.join(result)
+    
+    def finish(self) -> str:
+        result = []
+        
+        if self.state != 0:
+            self.errors.append((self.start_index, self.byte_offset))
+            self._flush_and_emit(result, 0xFFFD)
+            self.state = 0
+            self.accum = 0
+            self.expected = 0
+        
+        if self.pending:
+            self.errors.append((self.byte_offset, self.byte_offset + len(self.pending)))
+            self._flush_and_emit(result, 0xFFFD)
+            self.pending.clear()
+        
+        if self.segment_buffer:
+            segment_str = ''.join(chr(c) for c in self.segment_buffer)
+            result.append(unicodedata.normalize('NFC', segment_str))
+            self.segment_buffer.clear()
+        
+        return ''.join(result)
+    
+    def _process_codepoint(self, result, cp):
+        if unicodedata.combining(chr(cp)) == 0:
+            if self.segment_buffer:
+                segment_str = ''.join(chr(c) for c in self.segment_buffer)
+                result.append(unicodedata.normalize('NFC', segment_str))
+                self.segment_buffer.clear()
+            self.segment_buffer.append(cp)
+        else:
+            self.segment_buffer.append(cp)
+    
+    def _flush_and_emit(self, result, cp):
+        if self.segment_buffer:
+            segment_str = ''.join(chr(c) for c in self.segment_buffer)
+            result.append(unicodedata.normalize('NFC', segment_str))
+            self.segment_buffer.clear()
+        result.append(chr(cp))`;
+const SAMPLE_NEPSIS_11_11 = String.raw`import unicodedata
+
+class Utf8StreamNormalizer:
+    """
+    Streaming UTF-8 validator + NFC normalizer with:
+      - RFC 3629 checks (no overlongs, surrogates, >U+10FFFF, noncharacters)
+      - Byte-accurate error spans
+      - Cross-chunk NFC with a safe flush policy that understands Hangul Jamo
+    """
+
+    def __init__(self):
+        self.buffer = bytearray()
+        self.byte_offset = 0
+        self.errors = []
+        self.segment = []  # current canonical segment (list[str])
+
+    # ---------------- Public API ----------------
+
+    def push(self, chunk: bytes) -> str:
+        if not chunk:
+            return ""
+        self.buffer.extend(chunk)
+        out = []
+        pos = 0
+        n = len(self.buffer)
+
+        while pos < n:
+            b0 = self.buffer[pos]
+
+            # ASCII fast path
+            if b0 <= 0x7F:
+                self._accept_char(chr(b0), out)
+                pos += 1
+                continue
+
+            # Lone continuation bytes run (treat as one invalid run)
+            if 0x80 <= b0 <= 0xBF:
+                run_start = pos
+                pos += 1
+                while pos < n and 0x80 <= self.buffer[pos] <= 0xBF:
+                    pos += 1
+                self._record_span_error(run_start, pos)
+                self._accept_char("\uFFFD", out)
+                continue
+
+            # ----- Multi-byte sequences -----
+
+            # 2-byte: 110xxxxx 10xxxxxx
+            if 0xC0 <= b0 <= 0xDF:
+                if pos + 1 >= n:
+                    break  # incomplete
+                b1 = self.buffer[pos + 1]
+                if not (0x80 <= b1 <= 0xBF):
+                    # invalid follower → consume 1 byte only (minimal advance)
+                    self._record_span_error(pos, pos + 1)
+                    self._accept_char("\uFFFD", out)
+                    pos += 1
+                    continue
+                cp = ((b0 & 0x1F) << 6) | (b1 & 0x3F)
+                # overlong: cp < 0x80
+                if cp < 0x80 or self._is_noncharacter(cp):
+                    self._record_span_error(pos, pos + 2)
+                    self._accept_char("\uFFFD", out)
+                else:
+                    self._accept_char(chr(cp), out)
+                pos += 2
+                continue
+
+            # 3-byte: 1110xxxx 10xxxxxx 10xxxxxx
+            if 0xE0 <= b0 <= 0xEF:
+                if pos + 2 >= n:
+                    break  # incomplete
+                b1, b2 = self.buffer[pos + 1], self.buffer[pos + 2]
+                if not (0x80 <= b1 <= 0xBF and 0x80 <= b2 <= 0xBF):
+                    # minimal advance on bad follower
+                    self._record_span_error(pos, pos + 1)
+                    self._accept_char("\uFFFD", out)
+                    pos += 1
+                    continue
+                # Lead-byte boundary checks to avoid overlongs/surrogates
+                if b0 == 0xE0 and b1 < 0xA0:  # overlong
+                    self._record_span_error(pos, pos + 3)
+                    self._accept_char("\uFFFD", out)
+                    pos += 3
+                    continue
+                if b0 == 0xED and b1 >= 0xA0:  # surrogates
+                    self._record_span_error(pos, pos + 3)
+                    self._accept_char("\uFFFD", out)
+                    pos += 3
+                    continue
+                cp = ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F)
+                if cp < 0x800 or (0xD800 <= cp <= 0xDFFF) or self._is_noncharacter(cp):
+                    self._record_span_error(pos, pos + 3)
+                    self._accept_char("\uFFFD", out)
+                else:
+                    self._accept_char(chr(cp), out)
+                pos += 3
+                continue
+
+            # 4-byte: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+            if 0xF0 <= b0 <= 0xF4:
+                if pos + 3 >= n:
+                    break  # incomplete
+                b1, b2, b3 = self.buffer[pos + 1], self.buffer[pos + 2], self.buffer[pos + 3]
+                if not (0x80 <= b1 <= 0xBF and 0x80 <= b2 <= 0xBF and 0x80 <= b3 <= 0xBF):
+                    self._record_span_error(pos, pos + 1)
+                    self._accept_char("\uFFFD", out)
+                    pos += 1
+                    continue
+                # Lead-byte boundary checks to avoid overlongs and >U+10FFFF
+                if b0 == 0xF0 and b1 < 0x90:      # overlong for 4-byte
+                    self._record_span_error(pos, pos + 4)
+                    self._accept_char("\uFFFD", out)
+                    pos += 4
+                    continue
+                if b0 == 0xF4 and b1 > 0x8F:      # beyond U+10FFFF
+                    self._record_span_error(pos, pos + 4)
+                    self._accept_char("\uFFFD", out)
+                    pos += 4
+                    continue
+                cp = ((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F)
+                if cp < 0x10000 or cp > 0x10FFFF or self._is_noncharacter(cp):
+                    self._record_span_error(pos, pos + 4)
+                    self._accept_char("\uFFFD", out)
+                else:
+                    self._accept_char(chr(cp), out)
+                pos += 4
+                continue
+
+            # 0xF5..0xFF are invalid lead bytes
+            self._record_span_error(pos, pos + 1)
+            self._accept_char("\uFFFD", out)
+            pos += 1
+
+        # Advance global offset and keep any incomplete tail in buffer
+        self.byte_offset += pos
+        if pos:
+            del self.buffer[:pos]
+
+        return "".join(out)
+
+    def finish(self) -> str:
+        out = []
+        # Any leftover bytes mean an incomplete sequence → ONE span + ONE U+FFFD
+        if self.buffer:
+            start = self.byte_offset
+            end = self.byte_offset + len(self.buffer)
+            self.errors.append((start, end))
+            self.buffer.clear()
+            self._accept_char("\uFFFD", out)
+
+        if self.segment:
+            out.append(unicodedata.normalize("NFC", "".join(self.segment)))
+            self.segment.clear()
+        return "".join(out)
+
+    # ---------------- Helpers ----------------
+
+    def _accept_char(self, ch: str, out_parts: list):
+        """
+        Append a char into the current segment.
+        Flush the existing segment ONLY when it is safe:
+          - new char is a starter (combining class 0)
+          - and the existing segment does not end with Hangul Jamo that can still compose
+        This preserves cross-chunk NFC for cases like L+V(+T) → precomposed Hangul.
+        """
+        if self._is_starter(ch) and self._segment_safe_to_flush():
+            if self.segment:
+                out_parts.append(unicodedata.normalize("NFC", "".join(self.segment)))
+                self.segment.clear()
+            self.segment.append(ch)
+        else:
+            self.segment.append(ch)
+
+    def _segment_safe_to_flush(self) -> bool:
+        """
+        Safe to flush if:
+          - segment is empty → False (just accumulate)
+          - last char is NOT a Hangul Jamo L or V (which may combine with following Jamo)
+        """
+        if not self.segment:
+            return False
+        last = ord(self.segment[-1])
+        if self._is_hangul_jamo_L(last) or self._is_hangul_jamo_V(last):
+            return False
+        return True
+
+    @staticmethod
+    def _is_starter(ch: str) -> bool:
+        return unicodedata.combining(ch) == 0
+
+    @staticmethod
+    def _is_hangul_jamo_L(cp: int) -> bool:
+        # L jamo ranges (modern + extended-A)
+        return (0x1100 <= cp <= 0x115F) or (0xA960 <= cp <= 0xA97F)
+
+    @staticmethod
+    def _is_hangul_jamo_V(cp: int) -> bool:
+        # V jamo ranges (modern + extended-B)
+        return (0x1160 <= cp <= 0x11A7) or (0xD7B0 <= cp <= 0xD7C6)
+
+    @staticmethod
+    def _is_noncharacter(cp: int) -> bool:
+        if 0xFDD0 <= cp <= 0xFDEF:
+            return True
+        return (cp & 0xFFFF) in (0xFFFE, 0xFFFF)
+
+    # ---- error recording with global byte coordinates ----
+    def _record_span_error(self, local_start: int, local_end: int):
+        self.errors.append((self.byte_offset + local_start, self.byte_offset + local_end))`;
+const SAMPLE_TEXT = {
+  naked: SAMPLE_NAKED_8_11,
+  nepsis: SAMPLE_NEPSIS_11_11,
+};
+
+const MODEL_PRESETS = ['GPT-5', 'Claude 3.7 Sonnet', 'o3', 'Llama 3.1 405B', 'Gemini 2.0 Pro'];
+const MODEL_STORAGE_KEY = 'nepsis_active_model_v1';
+const MODEL_CUSTOM_STORAGE_KEY = 'nepsis_custom_model_v1';
+const PROMPT_TYPE_STORAGE_KEY = 'nepsis_prompt_type_v1';
+
 function buildNakedPrompt(llmLabel = '') {
   const clause = llmLabel.toLowerCase().includes('claude')
     ? 'Return only code. No prose.'
@@ -197,13 +598,10 @@ const K_CONSISTENCY = 3;
 const SEEDS = [137, 991, 2401];
 const SEED_STRATEGY = 'fixed_set_v2';
 const RUN_STORAGE_KEY = 'nepsis_runs_v2';
-const SAMPLE_PATHS = {
-  naked: '/solution_naked.py',
-  nepsis: '/solution_scaffold.py',
-};
-const sampleCache = new Map();
 
-let currentMode = 'baseline';
+let currentModel = MODEL_PRESETS[0];
+let customModelName = '';
+let currentPromptType = null;
 let currentDifficulty = 'standard';
 
 function loadRuns() {
@@ -226,6 +624,112 @@ function saveRuns(runs) {
   } catch (err) {
     console.warn('Failed to persist runs', err);
   }
+}
+
+function loadSelectionState() {
+  if (typeof window === 'undefined') return;
+  try {
+    const storedModel = window.localStorage.getItem(MODEL_STORAGE_KEY);
+    const storedCustom = window.localStorage.getItem(MODEL_CUSTOM_STORAGE_KEY);
+    const storedPrompt = window.localStorage.getItem(PROMPT_TYPE_STORAGE_KEY);
+
+    if (storedModel) {
+      if (MODEL_PRESETS.includes(storedModel)) {
+        currentModel = storedModel;
+        customModelName = '';
+      } else if (storedCustom) {
+        currentModel = storedCustom;
+        customModelName = storedCustom;
+      } else {
+        currentModel = storedModel;
+        customModelName = MODEL_PRESETS.includes(storedModel) ? '' : storedModel;
+      }
+    }
+
+    if (storedPrompt === 'naked' || storedPrompt === 'scaffold') {
+      currentPromptType = storedPrompt;
+    }
+  } catch (err) {
+    console.warn('Failed to load selection state', err);
+  }
+}
+
+function persistSelectionState() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(MODEL_STORAGE_KEY, currentModel || '');
+    const customValue = MODEL_PRESETS.includes(currentModel) ? '' : (customModelName || currentModel || '');
+    window.localStorage.setItem(MODEL_CUSTOM_STORAGE_KEY, customValue);
+    window.localStorage.setItem(PROMPT_TYPE_STORAGE_KEY, currentPromptType || '');
+  } catch (err) {
+    console.warn('Failed to persist selection state', err);
+  }
+}
+
+function updateModelUI() {
+  const select = get('modelSelect');
+  const badge = get('modelBadge');
+  if (select) {
+    const desiredValue = MODEL_PRESETS.includes(currentModel) ? currentModel : 'custom';
+    if (select.value !== desiredValue) {
+      select.value = desiredValue;
+    }
+  }
+  if (badge) {
+    if (currentModel) {
+      badge.textContent = currentModel;
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.textContent = '';
+      badge.style.display = 'none';
+    }
+  }
+}
+
+function updatePromptButtons() {
+  const nakedBtn = get('btnCopyNaked');
+  const scaffoldBtn = get('btnCopyScaffold');
+  if (nakedBtn) nakedBtn.classList.toggle('active', currentPromptType === 'naked');
+  if (scaffoldBtn) scaffoldBtn.classList.toggle('active', currentPromptType === 'scaffold');
+}
+
+function setModel(value, opts = {}) {
+  if (!value) return;
+  let nextModel = value;
+  let nextCustom = customModelName;
+
+  if (value === 'custom') {
+    if (Object.prototype.hasOwnProperty.call(opts, 'customName')) {
+      nextCustom = (opts.customName || '').trim();
+    } else if (opts.prompt !== false) {
+      const initial = customModelName || (!MODEL_PRESETS.includes(currentModel) ? currentModel : '');
+      const input = window.prompt('Enter model name', initial);
+      if (!input) {
+        updateModelUI();
+        return;
+      }
+      nextCustom = input.trim();
+    }
+    if (!nextCustom) {
+      updateModelUI();
+      return;
+    }
+    nextModel = nextCustom;
+  }
+
+  currentModel = nextModel;
+  customModelName = MODEL_PRESETS.includes(nextModel) ? '' : nextModel;
+  updateModelUI();
+  if (opts.persist !== false) persistSelectionState();
+  if (!opts.skipSync) syncURL();
+}
+
+function setPromptType(value, opts = {}) {
+  const normalized = value === 'naked' || value === 'scaffold' ? value : null;
+  currentPromptType = normalized;
+  updatePromptButtons();
+  if (opts.persist !== false) persistSelectionState();
+  if (!opts.skipSync) syncURL();
 }
 
 function generateRunId() {
@@ -257,16 +761,31 @@ function renderTags(tags = []) {
   }).join(' ');
 }
 
-let runHistory = loadRuns();
+function normalizeLegacyRun(run) {
+  if (!run || typeof run !== 'object') return run;
+  if (!run.model) {
+    const legacyMode = run.mode || 'unknown';
+    run.model = legacyMode === 'nepsis' ? 'Legacy Nepsis' : legacyMode === 'baseline' ? 'Legacy Baseline' : 'Legacy';
+  }
+  if (!Object.prototype.hasOwnProperty.call(run, 'prompt_type')) {
+    if (run.mode === 'nepsis') run.prompt_type = 'scaffold';
+    else if (run.mode === 'baseline') run.prompt_type = 'naked';
+    else run.prompt_type = null;
+  }
+  return run;
+}
+
+let runHistory = loadRuns().map((run) => normalizeLegacyRun(run));
+
+loadSelectionState();
+updateModelUI();
+updatePromptButtons();
 
 async function loadSample(kind) {
-  if (!SAMPLE_PATHS[kind]) throw new Error(`Unknown sample kind: ${kind}`);
-  if (sampleCache.has(kind)) return sampleCache.get(kind);
-  const res = await fetch(SAMPLE_PATHS[kind]);
-  if (!res.ok) throw new Error(`Failed to load sample ${kind}: ${res.status}`);
-  const text = await res.text();
-  sampleCache.set(kind, text);
-  return text;
+  if (!Object.prototype.hasOwnProperty.call(SAMPLE_TEXT, kind)) {
+    throw new Error(`Unknown sample kind: ${kind}`);
+  }
+  return SAMPLE_TEXT[kind];
 }
 
 function ensureCanonicalRun() {
@@ -281,7 +800,8 @@ function ensureCanonicalRun() {
   const canonicalRun = {
     run_id: 'canonical_nepsis_standard',
     ts: Date.now() - 1000 * 60 * 60 * 24,
-    mode: 'nepsis',
+    model: 'GPT-5',
+    prompt_type: 'scaffold',
     difficulty: 'standard',
     k: K_CONSISTENCY,
     seeds: [...SEEDS],
@@ -293,13 +813,14 @@ function ensureCanonicalRun() {
   saveRuns(runHistory);
 }
 
-function recordRun(mode, difficulty, cases, meta = {}) {
+function recordRun(promptType, difficulty, cases, meta = {}) {
   if (!cases || !cases.length) return;
   const ts = Date.now();
   const run = {
     run_id: meta.run_id || generateRunId(),
     ts,
-    mode,
+    model: currentModel,
+    prompt_type: promptType ?? null,
     difficulty,
     k: meta.k ?? K_CONSISTENCY,
     seeds: meta.seeds ?? [...SEEDS],
@@ -338,27 +859,27 @@ function renderMetrics() {
 
   const buckets = new Map();
   for (const run of runHistory) {
-    const key = `${run.mode}|${run.difficulty}`;
-    const bucket = buckets.get(key) || { runs: 0, total: 0, pass: 0 };
+    const model = run.model || '—';
+    const prompt = run.prompt_type || '—';
+    const difficulty = run.difficulty || 'standard';
+    const key = `${model}|${prompt}|${difficulty}`;
+    const bucket = buckets.get(key) || { model, prompt, difficulty, runs: 0, total: 0, pass: 0 };
     bucket.runs += 1;
     bucket.total += run.items.length;
     bucket.pass += run.items.filter((item) => item.pass).length;
     buckets.set(key, bucket);
   }
 
-  const rows = [];
-  for (const difficulty of ['standard', 'hard']) {
-    const baselineKey = `baseline|${difficulty}`;
-    const nepsisKey = `nepsis|${difficulty}`;
-    const baseBucket = buckets.get(baselineKey) || { runs: 0, total: 0, pass: 0 };
-    const nepsisBucket = buckets.get(nepsisKey) || { runs: 0, total: 0, pass: 0 };
-    const baseRate = baseBucket.total ? percentage(baseBucket.pass, baseBucket.total) : null;
-    const nepsisRate = nepsisBucket.total ? percentage(nepsisBucket.pass, nepsisBucket.total) : null;
-    const delta = baseRate !== null && nepsisRate !== null ? nepsisRate - baseRate : null;
-
-    rows.push(renderMetricRow('Strict Baseline', difficulty, baseBucket, baseRate, null));
-    rows.push(renderMetricRow('Nepsis Lite', difficulty, nepsisBucket, nepsisRate, delta));
-  }
+  const orderDifficulty = (value) => (value === 'standard' ? 0 : value === 'hard' ? 1 : 2);
+  const rows = Array.from(buckets.values())
+    .sort((a, b) => {
+      const modelCmp = a.model.localeCompare(b.model);
+      if (modelCmp !== 0) return modelCmp;
+      const promptCmp = String(a.prompt).localeCompare(String(b.prompt));
+      if (promptCmp !== 0) return promptCmp;
+      return orderDifficulty(a.difficulty) - orderDifficulty(b.difficulty);
+    })
+    .map((bucket) => renderMetricRow(bucket));
 
   body.innerHTML = rows.join('');
   if (consistencyChip) {
@@ -366,17 +887,16 @@ function renderMetrics() {
   }
 }
 
-function renderMetricRow(label, difficulty, bucket, rate, delta) {
+function renderMetricRow(bucket) {
   const passText = `${bucket.pass || 0} / ${bucket.total || 0}`;
-  const passRate = rate !== null ? `${rate}%` : '—';
-  const deltaText = delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}%`;
+  const passRate = bucket.total ? `${percentage(bucket.pass, bucket.total)}%` : '—';
   return `<tr>
-    <td>${label}</td>
-    <td class="capitalize">${difficulty}</td>
+    <td>${escapeHtml(bucket.model)}</td>
+    <td class="capitalize">${escapeHtml(bucket.prompt)}</td>
+    <td class="capitalize">${escapeHtml(bucket.difficulty)}</td>
     <td>${bucket.runs || 0}</td>
     <td>${passRate}</td>
     <td>${passText}</td>
-    <td>${deltaText}</td>
   </tr>`;
 }
 
@@ -391,8 +911,9 @@ function renderRunHistory() {
     const runTags = Array.from(new Set(run.items.flatMap((item) => item.tags || [])));
     return `<tr>
       <td>${new Date(run.ts).toLocaleString()}</td>
-      <td class="capitalize">${run.mode}</td>
-      <td class="capitalize">${run.difficulty}</td>
+      <td class="whitespace-nowrap">${escapeHtml(run.model || '—')}</td>
+      <td class="capitalize">${escapeHtml(run.prompt_type || '—')}</td>
+      <td class="capitalize">${escapeHtml(run.difficulty || '')}</td>
       <td>${passed}</td>
       <td>${total}</td>
       <td>${percentage(passed, total)}%</td>
@@ -400,19 +921,19 @@ function renderRunHistory() {
       <td>${renderTags(runTags)}</td>
     </tr>`;
   }).join('');
-  body.innerHTML = rows || '<tr><td colspan="8" style="color:var(--muted)">No runs recorded yet.</td></tr>';
+  body.innerHTML = rows || '<tr><td colspan="9" style="color:var(--muted)">No runs recorded yet.</td></tr>';
 }
 
 ensureCanonicalRun();
 renderMetrics();
 renderRunHistory();
 
-// ---- prompt copy buttons & mode toggle ----
+// ---- prompt copy buttons & selections ----
 const copyNakedBtn = get('btnCopyNaked');
 const copyScaffoldBtn = get('btnCopyScaffold');
 const promptToast = get('promptToast');
-const modeToggle = get('modeToggle');
-const modeIndicator = get('modeIndicator');
+const modelSelect = get('modelSelect');
+const modelBadge = get('modelBadge');
 const pastePrimary = get('pasteBox') || get('nakedOut');
 const pasteSecondary = get('nepsisOut');
 const sampleCopyNaked = get('btnCopyNakedSample');
@@ -421,31 +942,24 @@ const sampleCopyNepsis = get('btnCopyNepsisSample');
 const sampleInsertNepsis = get('btnInsertNepsisSample');
 const codeEditor = get('solutionCode');
 
-function updateModeIndicator() {
-  if (!modeIndicator) return;
-  modeIndicator.textContent = currentMode === 'nepsis' ? 'Mode: Nepsis Lite' : 'Mode: Strict Baseline';
+if (modelBadge) {
+  modelBadge.textContent = currentModel;
+  modelBadge.style.display = currentModel ? 'inline-flex' : 'none';
 }
 
-function setMode(value) {
-  currentMode = value;
-  if (modeToggle) {
-    modeToggle.querySelectorAll('button').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.mode === value);
-    });
-  }
-  if (copyNakedBtn) copyNakedBtn.classList.toggle('active', value === 'baseline');
-  if (copyScaffoldBtn) copyScaffoldBtn.classList.toggle('active', value === 'nepsis');
-  updateModeIndicator();
-  syncURL();
+if (modelSelect) {
+  modelSelect.addEventListener('change', (event) => {
+    const value = event.target.value;
+    setModel(value, { prompt: true });
+  });
+  updateModelUI();
 }
 
-updateModeIndicator();
-
-async function handlePromptCopy(text, button, label) {
+async function handlePromptCopy(text, button, label, promptType) {
   if (!button) return;
   try {
     await safeCopy(text);
-    button.classList.add('active');
+    if (promptType) setPromptType(promptType);
     if (promptToast) {
       promptToast.textContent = label;
       promptToast.style.display = 'inline';
@@ -457,26 +971,15 @@ async function handlePromptCopy(text, button, label) {
   }
 }
 
-if (modeToggle) {
-  modeToggle.querySelectorAll('button').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const value = btn.dataset.mode;
-      if (value) setMode(value);
-    });
-  });
-}
-
 if (copyNakedBtn) {
   copyNakedBtn.addEventListener('click', () => {
-    setMode('baseline');
-    handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt').finally(() => focusPasteBox());
+    handlePromptCopy(buildNakedPrompt('Claude'), copyNakedBtn, 'Copied Naked prompt', 'naked').finally(() => focusPasteBox());
   });
 }
 
 if (copyScaffoldBtn) {
   copyScaffoldBtn.addEventListener('click', () => {
-    setMode('nepsis');
-    handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt').finally(() => focusPasteBox());
+    handlePromptCopy(NEPSIS_SCAFFOLD_PROMPT, copyScaffoldBtn, 'Copied Scaffold (Lite) prompt', 'scaffold').finally(() => focusPasteBox());
   });
 }
 
@@ -515,7 +1018,10 @@ const difficultyToggle = get('difficultyToggle');
 function syncURL() {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
-  url.searchParams.set('mode', currentMode);
+  if (currentModel) url.searchParams.set('model', currentModel);
+  else url.searchParams.delete('model');
+  if (currentPromptType) url.searchParams.set('prompt', currentPromptType);
+  else url.searchParams.delete('prompt');
   url.searchParams.set('difficulty', currentDifficulty);
   window.history.replaceState(null, '', url);
 }
@@ -542,15 +1048,24 @@ syncURL();
 function loadURL() {
   if (typeof window === 'undefined') return;
   const params = new URLSearchParams(window.location.search);
-  const modeParam = params.get('mode');
+  const modelParam = params.get('model');
+  const promptParam = params.get('prompt');
   const diffParam = params.get('difficulty');
-  if (modeParam === 'nepsis' || modeParam === 'baseline') {
-    currentMode = modeParam;
+  if (modelParam) {
+    if (MODEL_PRESETS.includes(modelParam)) {
+      setModel(modelParam, { persist: false, skipSync: true, prompt: false });
+    } else {
+      setModel('custom', { customName: modelParam, persist: false, skipSync: true, prompt: false });
+    }
+  } else {
+    updateModelUI();
+  }
+  if (promptParam === 'naked' || promptParam === 'scaffold') {
+    setPromptType(promptParam, { persist: false, skipSync: true });
   }
   if (diffParam === 'hard' || diffParam === 'standard') {
     currentDifficulty = diffParam;
   }
-  setMode(currentMode);
   setDifficulty(currentDifficulty);
 }
 
@@ -683,8 +1198,8 @@ function focusCodeEditor() {
 function insertSampleIntoEditor(kind) {
   loadSample(kind).then((text) => {
     if (!codeEditor) return;
-    const targetMode = kind === 'nepsis' ? 'nepsis' : 'baseline';
-    setMode(targetMode);
+    const targetPrompt = kind === 'nepsis' ? 'scaffold' : 'naked';
+    setPromptType(targetPrompt);
     activatePane('code');
     codeEditor.value = text;
     codeEditor.selectionStart = codeEditor.selectionEnd = codeEditor.value.length;
@@ -714,9 +1229,9 @@ if (evaluateBtn) {
 
     renderEvalTables(eN, eS);
     const baselineCases = rowsToCases(eN.rows);
-    if (baselineCases.length) recordRun('baseline', currentDifficulty, baselineCases, { latency: 0 });
+    if (baselineCases.length) recordRun('naked', currentDifficulty, baselineCases, { latency: 0 });
     const nepsisCases = rowsToCases(eS.rows);
-    if (nepsisCases.length) recordRun('nepsis', currentDifficulty, nepsisCases, { latency: 0 });
+    if (nepsisCases.length) recordRun('scaffold', currentDifficulty, nepsisCases, { latency: 0 });
     showToast('Outputs evaluated');
   });
 }
@@ -739,14 +1254,14 @@ if (pasteSecondary) {
   });
 }
 
-const downloadBtn = get('btnDownload');
+const downloadBtn = get('btnDownloadCsv');
 if (downloadBtn) {
   downloadBtn.addEventListener('click', () => {
     if (!runHistory.length) {
       showToast('No runs recorded yet', false);
       return;
     }
-    const header = ['run_id','ts','mode','difficulty','prompt_id','pass','reason','k','votes_passed','seeds','latency_ms','seed_strategy'];
+    const header = ['run_id','ts','model','prompt_type','difficulty','prompt_id','pass','reason','k','votes_passed','seeds','latency_ms','seed_strategy'];
     const lines = [header.join(',')];
     for (const run of runHistory) {
       for (const item of run.items) {
@@ -755,7 +1270,8 @@ if (downloadBtn) {
         lines.push([
           run.run_id,
           new Date(run.ts).toISOString(),
-          run.mode,
+          run.model || '',
+          run.prompt_type || '',
           run.difficulty,
           item.prompt_id,
           item.pass ? '1' : '0',
@@ -920,7 +1436,7 @@ if (runBtn) {
         : [];
       if (normalizedCases.length) {
         const latency = Math.round(performance.now() - start);
-        recordRun(currentMode, currentDifficulty, normalizedCases, { latency });
+        recordRun(currentPromptType, currentDifficulty, normalizedCases, { latency });
       }
       showToast('Tests completed');
     } catch (err) {

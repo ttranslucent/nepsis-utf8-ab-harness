@@ -41,7 +41,16 @@
   .metrics-table{width:100%;border-collapse:collapse}
   .metrics-table th,.metrics-table td{border-bottom:1px solid var(--line);padding:.55rem;text-align:left}
   .code-block{background:#0b1220;border:1px solid var(--line);border-radius:.7rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
-  .toolbar{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0;padding:.6rem .9rem;background:rgba(11,18,32,.92);backdrop-filter:blur(12px);border:1px solid rgba(103,232,249,.18);border-radius:.85rem;align-items:center}
+  .toolbar{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--muted);padding:.6rem .8rem}
+  .controls-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .ctrl-label{font-size:.85rem;color:var(--muted)}
+  .ctrl{padding:.35rem .5rem;border:1px solid var(--muted);border-radius:.5rem;background:transparent;color:inherit}
+  .btn{appearance:none;border-radius:.65rem;border:1px solid var(--muted);padding:.45rem .9rem;background:transparent;color:var(--ink);font-weight:600;cursor:pointer;transition:background .2s,color .2s,transform .05s}
+  .btn:hover{background:rgba(103,232,249,.12)}
+  .btn.active{border-color:var(--accent);color:var(--accent);background:rgba(103,232,249,.14)}
+  .btn.primary{background:linear-gradient(90deg,rgba(103,232,249,.35),rgba(192,132,252,.35));border:0}
+  .btn.ghost{background:transparent;color:var(--muted)}
+  .pill{font-size:.78rem;padding:.2rem .5rem;border:1px solid var(--muted);border-radius:999px;color:var(--muted)}
   .samples{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
   .samples-label{font-size:.85rem;color:var(--muted);margin-right:.25rem}
   .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .5rem;border:1px solid var(--muted);border-radius:999px;font-size:.75rem;color:var(--muted);cursor:pointer;transition:background .2s,color .2s}
@@ -49,6 +58,7 @@
   .chip-naked-alt{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
   .chip-nepsis{border-color:#2563eb;color:#2563eb}
   .chip-nepsis-alt{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+  .whitespace-nowrap{white-space:nowrap}
   textarea{width:100%;padding:.7rem .8rem;border:1px solid var(--line);border-radius:.7rem;background:#0b1220;color:var(--ink);resize:vertical;min-height:70px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   textarea::placeholder{opacity:.45;color:var(--muted)}
   textarea:focus::placeholder{opacity:.2}
@@ -66,19 +76,33 @@
   <h1>Nepsis A/B Demo Runner</h1>
   <p>Use your own LLM. Copy the prompts, run them, paste outputs below, then <em>Evaluate</em>.</p>
   <div class="toolbar">
-    <span class="toggle-label">Mode</span>
-    <div class="toggle-group" id="modeToggle">
-      <button type="button" data-mode="baseline" class="active">Strict Baseline</button>
-      <button type="button" data-mode="nepsis">Nepsis Lite</button>
+    <div class="controls-row">
+      <!-- Model selector (tracking-only for now) -->
+      <label class="ctrl-label" for="modelSelect">Model</label>
+      <select id="modelSelect" class="ctrl">
+        <option>GPT-5</option>
+        <option>Claude 3.7 Sonnet</option>
+        <option>o3</option>
+        <option>Llama 3.1 405B</option>
+        <option>Gemini 2.0 Pro</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <span id="modelBadge" class="pill"></span>
+
+      <!-- Prompts (copy only) -->
+      <button id="btnCopyNaked" class="btn" type="button">Copy Naked Prompt</button>
+      <button id="btnCopyScaffold" class="btn" type="button">Copy Nepsis-Scaffold Prompt</button>
+
+      <!-- Evaluate -->
+      <button id="btnEvaluate" class="btn primary" type="button">Evaluate Pasted Outputs</button>
+
+      <!-- Export -->
+      <button id="btnDownloadCsv" class="btn ghost" type="button">Download Scorecard CSV</button>
+
+      <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
     </div>
-    <button id="btnCopyNaked" class="cta-button active" type="button">Copy Naked Prompt</button>
-    <button id="btnCopyScaffold" class="cta-button" type="button">Copy Nepsis-Scaffold Prompt</button>
-    <button id="btnEvaluate" class="cta-button" type="button">Evaluate Pasted Outputs</button>
-    <button id="btnDownload" class="cta-button" type="button">Download Scorecard CSV</button>
-    <span id="modeIndicator" class="chip">Mode: Strict Baseline</span>
-    <span id="promptToast" style="display:none;color:var(--muted)">Prompt copied</span>
-    <a href="/" class="back" style="margin-left:auto">← Back</a>
   </div>
+  <a href="/" class="back" style="margin-left:auto;display:inline-block;margin-top:.6rem">← Back</a>
   <!-- ===== A/B Runner & Evaluator ===== -->
   <section id="runner" class="cta-section" style="margin-top:60px">
     <h2 class="cta-title">Try It Yourself — No Install</h2>
@@ -163,7 +187,7 @@ class Utf8StreamNormalizer:
     <p style="margin:0 0 .75rem;color:var(--muted);font-size:.85rem">Standard: Canonical first run 11/11. Variability is normal; Hard Mode is adversarial and enforces strict span/structure checks.</p>
     <table id="metricsTable" class="metrics-table">
       <thead>
-        <tr><th>Mode</th><th>Difficulty</th><th>Runs</th><th>Pass %</th><th>Passed / Total</th><th>Δ vs Baseline</th></tr>
+        <tr><th>Model</th><th>Prompt</th><th>Difficulty</th><th>Runs</th><th>Pass %</th><th>Passed / Total</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -173,7 +197,7 @@ class Utf8StreamNormalizer:
     <h3 style="margin-top:0">Recent Runs</h3>
     <table id="runsTable" class="metrics-table">
       <thead>
-        <tr><th>Timestamp</th><th>Mode</th><th>Difficulty</th><th>Passed</th><th>Total</th><th>Pass %</th><th>Run ID</th><th>Tags</th></tr>
+        <tr><th>Timestamp</th><th>Model</th><th>Prompt</th><th>Difficulty</th><th>Passed</th><th>Total</th><th>Pass %</th><th>Run ID</th><th>Tags</th></tr>
       </thead>
       <tbody></tbody>
     </table>
