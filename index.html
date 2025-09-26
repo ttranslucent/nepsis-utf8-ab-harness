@@ -10,7 +10,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Nepsis — The Missing Interpretant Layer in AI"/>
 <title>Nepsis — The Missing Interpretant Layer in AI</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+<link rel="icon" type="image/png" href="assets/ns-icon-512.png"/>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -43,6 +43,55 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+.toolbar {
+  padding: 0.9rem clamp(1rem, 4vw, 2.2rem);
+  background: linear-gradient(145deg, rgba(8,15,28,0.96), rgba(10,20,36,0.92));
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 22px 45px -36px rgba(3,10,22,0.85);
+  backdrop-filter: blur(18px);
+}
+.top-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.toolbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--text);
+}
+.brand img {
+  height: 30px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+}
+.brand .wordmark {
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+@media (min-width: 768px) {
+  .brand img { height: 34px; }
+}
+
+@media (max-width: 640px) {
+  .toolbar { padding: 0.8rem 1rem; }
+  .toolbar-inner { justify-content: center; }
+  .brand .wordmark { display: none; }
 }
 
 .container {
@@ -809,6 +858,15 @@ h1 {
 </style>
 </head>
 <body>
+
+<div class="toolbar top-toolbar">
+  <div class="toolbar-inner">
+    <a class="brand" href="/">
+      <img src="assets/nepsisai-logo.png" alt="NepsisAI logo" />
+      <span class="wordmark">NEPSISAI</span>
+    </a>
+  </div>
+</div>
 
 <div class="container">
   <!-- Hero Section -->
